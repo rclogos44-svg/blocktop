@@ -913,9 +913,9 @@ function dunkContest(p){let best=0;const rx=HOOP.x,rz=HOOP.z+0.35;
     let c=Math.max(clamp((2.0-dR)/1.6,0,1),0.7*clamp((1.6-dP)/1.3,0,1));c*=0.75+0.35*o.n('block')+0.15*o.n('strength');if(o.y>0.1||o.state==='block')c*=1.25;best=Math.max(best,c);}
   return clamp(best,0,1);}
 function finWindow(p,c,kind){
-  if(kind==='dunk'){const r=p.n('dunk'),contact=p.dk&&p.dk.type==='contact';let w=(0.045+0.075*r)*(1-0.55*c);if(contact)w*=0.4+0.25*p.n('strength');return clamp(w,0.008,0.16);}
+  if(kind==='dunk'){const r=p.n('dunk'),contact=p.dk&&p.dk.type==='contact';let w=(0.07+0.1*r)*(1-0.55*c);if(contact)w*=0.4+0.25*p.n('strength');return clamp(w,0.01,0.24);}
   const r=kind==='floater'?p.n('close')*0.7+p.n('mid')*0.3:p.n('layup')*0.65+p.n('close')*0.35;
-  return clamp((0.06+0.08*r)*(1-0.7*c),0.012,0.2);}
+  return clamp((0.09+0.11*r)*(1-0.7*c),0.015,0.28);}
 function finKind(p){return p.state==='dunk'?'dunk':p.state==='floater'?'floater':(p.lay?p.lay.type:'layup');}
 function startFin(p,T){p.fin={T,rel:null,done:false,ai:p.isHuman?null:1+gauss()*sigmaOf(p)*0.9};}
 const finReady=p=>!p.fin||!p.isHuman||p.fin.rel!=null||p.st/p.fin.T>=1.5;
