@@ -1198,7 +1198,7 @@ function handlerAI(p,dt){
     p.sprinting=true;setWant(p,HOOP.x+(p.pos.x>0?0.35:-0.35),HOOP.z+0.9,p.d.sprint*(0.86+0.1*p.n('handle')),0.1);a.driveT-=dt;
     const reach=canDunk(p)?Math.max(dunkRange(p),2.3):2.3;
     if(D<reach){finish(p);return;}
-    if(a.driveT<=0||(!laneOpen(p,0.7)&&near.d<0.9)){a.mode=null;a.hold=Math.min(a.hold,0.3);if(D<3.6&&p.n('close')>0.4&&Math.random()<0.5){startFloater(p);return;}
+    if(a.driveT<=0||(!a.power&&!laneOpen(p,0.7)&&near.d<0.9)){a.mode=null;a.power=false;a.hold=Math.min(a.hold,0.3);if(D<3.6&&p.n('close')>0.4&&Math.random()<0.5){startFloater(p);return;}
       if(tm&&nearestOpp(tm).d>1.6&&passLaneOpen(p,tm)&&Math.random()<0.75){startPass(p,tm);return;}}
     return;
   }
@@ -1212,6 +1212,7 @@ function handlerAI(p,dt){
     const open=near.d>2.2,att=Math.max(p.n('layup'),p.n('dunk'));
     if(a.hold>0.5&&est>(open?0.45:0.62)&&Math.random()<0.6){startShot(p);return;}
     if(a.hold>0.3&&laneOpen(p,0.9)&&D<9.5&&Math.random()<0.35+0.4*att+(near.d<1.7&&!open?0.2:0)){a.mode='drive';a.driveT=1.8;return;}
+    if(!tm&&a.hold>0.4&&D<6.2&&near.o&&p.d.mass*(0.7+0.3*p.n('strength'))>near.o.d.mass*(0.7+0.3*near.o.n('strength'))*1.2&&Math.random()<0.18+0.2*att){a.mode='drive';a.driveT=1.4;a.power=true;return;}
     if(a.hold>0.5&&mOpen>near.d+0.9&&mOpen>1.8&&passLaneOpen(p,tm)&&Math.random()<0.45){startPass(p,tm);return;}
     if(near.d<1.4&&p.cool.cross<=0&&Math.random()<0.25+0.2*p.n('handle')){const t=['cross','cross','btb','legs','hesi','spin','stepback'][Math.floor(Math.random()*7)];startMove(p,t);if(t==='stepback')a.t=0.35;return;}
     if(tm&&a.hold>3.2&&Math.random()<0.35&&passLaneOpen(p,tm)){startPass(p,tm);return;}
