@@ -284,6 +284,7 @@ input[type=range].body{background:linear-gradient(to right,var(--blue) 0,var(--b
         <button type="button" data-d="legend" aria-pressed="false">Legend<small>Lockdown</small></button>
       </div>
     </div>
+    <p class="rule" id="storeWarn" hidden style="color:var(--warn)">This browser isn't keeping saved data (private or incognito mode, or blocked site data), so builds will be lost when you close it. Use a normal window, or copy your build code from the builder to keep it.</p>
     <button id="playBtn" class="play" type="button">Play</button>
     <dl class="controls keyonly" id="ctrlList"></dl>
     <p class="rule touchonly">Left stick moves. Hold <b>SHOOT</b> and let go inside the green. Tap <b>SPRINT</b> to turn sprint on or off, then press SHOOT near the rim to dunk; without sprint you lay it up. <b>PASS</b> steals on defense (in MyCourt it gets you a ball). <b>SPIN</b> spins; double-flick the stick for crossovers, breakdowns and stepbacks. Two-player modes need a keyboard.</p>
@@ -331,10 +332,18 @@ input[type=range].body{background:linear-gradient(to right,var(--blue) 0,var(--b
         <div class="chips" id="dunkCh"></div>
         <div><div class="label">RIM HANG</div><div class="chips" id="hangCh"></div></div>
       </div>
+      <div class="bsec">
+        <h3>BUILD CODE</h3>
+        <p class="rule">Your build saves automatically on this device. To move it to another browser or device, or give it to a friend, copy its code and load it there.</p>
+        <div class="row"><button id="bCopy" class="ghost sm" type="button">Copy build code</button></div>
+        <textarea id="bCodeOut" readonly rows="2" style="width:100%;box-sizing:border-box;background:var(--panel-solid);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;color:var(--dim);resize:none" hidden></textarea>
+        <div class="row"><input id="bCodeIn" type="text" placeholder="Paste a build code here" autocomplete="off" style="flex:1 1 200px"><button id="bLoad" class="ghost sm" type="button">Load code</button></div>
+        <p class="rule" id="bCodeMsg"></p>
+      </div>
       <div class="bsec" id="bAttrs"></div>
       <div class="row">
-        <button id="bSave" class="play" type="button">Save build</button>
-        <button id="bCancel" class="ghost" type="button">Cancel</button>
+        <button id="bSave" class="play" type="button">Done</button>
+        <button id="bCancel" class="ghost" type="button">Undo my changes</button>
         <button id="bReset" class="ghost" type="button">Reset points</button>
         <button id="bDelete" class="ghost danger" type="button">Delete build</button>
       </div>
@@ -404,6 +413,8 @@ function beyondArc(x,z,m){return z<ARC_JOIN?Math.abs(x)>=CORNER_X+m:hoopDist(x,z
 function erf(x){const t=1/(1+0.3275911*Math.abs(x));const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return x>=0?y:-y;}
 function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
 const $=id=>document.getElementById(id);
+const storeOK=(()=>{try{localStorage.setItem('bt.t','1');const ok=localStorage.getItem('bt.t')==='1';localStorage.removeItem('bt.t');return ok;}catch(e){return false;}})();
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist().catch(()=>{});}catch(e){}
 const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -1738,6 +1749,7 @@ function renderMenu(){
     sel.innerHTML=builds.map(b=>`<option value="${b.id}"${b.id===cur?' selected':''}>${esc(b.name)} #${b.num} · ${ovr(b)} OVR</option>`).join('');
     if(!builds.find(b=>b.id===cur)){settings['p'+(i+1)]=builds[0].id;sel.value=builds[0].id;}
     $('sum'+i).innerHTML=buildSummary(buildById(settings['p'+(i+1)]));}
+  $('storeWarn').hidden=storeOK;
   const m=settings.mode;$('pc1').hidden=m==='solo'||m==='mycourt'||m==='online'||m==='one';$('diffSeg').hidden=$('diffLabel').hidden=m==='mycourt'||m==='online';$('onlinePanel').hidden=m!=='online';$('playBtn').hidden=m==='online';
   $('pc0side').textContent='Blue team';$('pc1side').textContent=m==='versus'?'Red team':'Blue team';
   document.querySelectorAll('#modeSeg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.m===m)));
@@ -1785,8 +1797,8 @@ function setupBuilder(){
   $('hangCh').addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;BU.cur.hang=t.dataset.k;refreshBuilder(false);});
   $('bandBtn').addEventListener('click',()=>{BU.cur.band=!BU.cur.band;refreshBuilder(true);});
   $('sleeveBtn').addEventListener('click',()=>{BU.cur.sleeve=!BU.cur.sleeve;refreshBuilder(true);});
-  $('bName').addEventListener('input',e=>{BU.cur.name=e.target.value.slice(0,12);BU.dirty=true;});
-  $('bNum').addEventListener('input',e=>{BU.cur.num=clamp(parseInt(e.target.value,10)||0,0,99);BU.dirty=true;});
+  $('bName').addEventListener('input',e=>{BU.cur.name=e.target.value.slice(0,12);BU.dirty=true;commitBuild();});
+  $('bNum').addEventListener('input',e=>{BU.cur.num=clamp(parseInt(e.target.value,10)||0,0,99);BU.dirty=true;commitBuild();});
   const body=(id,key)=>$(id).addEventListener('input',e=>{BU.cur[key]=+e.target.value;clampBuild(BU.cur);refreshBuilder(true);});
   body('bH','h');body('bW','w');body('bWs','ws');
   let html='';for(const c of CATS){html+=`<div class="cat"><h3>${c.toUpperCase()}</h3><span id="cat-${c}">0</span></div>`;
@@ -1794,14 +1806,22 @@ function setupBuilder(){
   $('bAttrs').innerHTML=html;
   for(const [k] of ATTRS)$('at-'+k).addEventListener('input',e=>{const b=BU.cur;let v=clamp(+e.target.value,A_MIN,capFor(k,b));const old=b.a[k];b.a[k]=v;while(spent(b)>BUDGET&&b.a[k]>old)b.a[k]--;if(b.a[k]<old&&v>old)b.a[k]=old;refreshBuilder(false);});
   $('bReset').addEventListener('click',()=>{for(const [k] of ATTRS)BU.cur.a[k]=A_MIN;refreshBuilder(false);});
-  $('bCancel').addEventListener('click',closeBuilder);
-  $('bSave').addEventListener('click',()=>{const b=BU.cur;b.name=(b.name||'').trim()||'Hooper';const i=builds.findIndex(x=>x.id===b.id);
-    if(i>=0)builds[i]=b;else builds.push(b);settings['p'+(BU.forP+1)]=b.id;saveAll();closeBuilder();});
+  $('bCancel').addEventListener('click',()=>{const i=builds.findIndex(x=>x.id===BU.cur.id);if(BU.orig){if(i>=0)builds[i]=BU.orig;}else if(i>=0&&builds.length>1)builds.splice(i,1);saveAll();closeBuilder();});
+  $('bSave').addEventListener('click',()=>{commitBuild(true);closeBuilder();});
+  $('bCopy').addEventListener('click',()=>{const code=buildCode(BU.cur),out=$('bCodeOut');out.value=code;out.hidden=false;out.select();
+    const ok=()=>{$('bCodeMsg').textContent='Copied. Paste it into the builder on any device to load this build.';};
+    try{navigator.clipboard.writeText(code).then(ok,()=>{$('bCodeMsg').textContent='Select the code above and copy it.';});}catch(e){$('bCodeMsg').textContent='Select the code above and copy it.';}});
+  $('bLoad').addEventListener('click',()=>{const b=readCode($('bCodeIn').value);if(!b){$('bCodeMsg').textContent="That code didn't work. Make sure you pasted the whole thing.";return;}
+    const keep=BU.cur.id;Object.assign(BU.cur,b,{id:keep});$('bCodeIn').value='';$('bCodeMsg').textContent='Loaded '+b.name+'.';refreshBuilder(true);});
   $('bDelete').addEventListener('click',()=>{const i=builds.findIndex(x=>x.id===BU.cur.id);if(i>=0&&builds.length>1){builds.splice(i,1);saveAll();}closeBuilder();});
 }
+function buildCode(b){const o=Object.assign({},b);delete o.id;return 'BT1:'+btoa(unescape(encodeURIComponent(JSON.stringify(o))));}
+function readCode(c){try{c=(c||'').trim();if(!c.startsWith('BT1:'))return null;const o=JSON.parse(decodeURIComponent(escape(atob(c.slice(4)))));o.id=newId();return sanitize(o);}catch(e){return null;}}
+function commitBuild(final){const b=JSON.parse(JSON.stringify(BU.cur));b.name=(b.name||'').trim()||'Hooper';if(final)BU.cur.name=b.name;const i=builds.findIndex(x=>x.id===b.id);
+  if(i>=0)builds[i]=b;else builds.push(b);settings['p'+(BU.forP+1)]=b.id;saveAll();}
 function openBuilder(b,forP,isNew){
-  BU.cur=JSON.parse(JSON.stringify(b));BU.forP=forP;BU.isNew=isNew;
-  $('bDelete').hidden=isNew||builds.length<2;$('builder').hidden=false;$('menu').hidden=true;
+  BU.cur=JSON.parse(JSON.stringify(b));BU.forP=forP;BU.isNew=isNew;BU.orig=isNew?null:JSON.parse(JSON.stringify(b));$('bCodeOut').hidden=true;$('bCodeMsg').textContent='';
+  $('bDelete').hidden=builds.length<(isNew?1:2);$('builder').hidden=false;$('menu').hidden=true;
   if(!BU.r){
     BU.r=new THREE.WebGLRenderer({canvas:$('pv'),antialias:true});BU.r.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
     BU.scene=new THREE.Scene();BU.scene.background=new THREE.Color(0x0f1628);
@@ -1841,6 +1861,7 @@ function refreshBuilder(rebuild){
   const m2in=m=>Math.round(m/0.0254);
   $('meas').innerHTML=`<div><b>${fmtH(m2in(d.reach))}</b><span>STANDING REACH</span></div><div><b>${m2in(d.jumpH)}"</b><span>MAX VERTICAL</span></div><div><b>${canDunk({b,d})?'YES':'NO'}</b><span>CAN DUNK</span></div>
     <div><b>${(d.sprint*2.237).toFixed(1)}</b><span>TOP MPH</span></div><div><b>${d.mass.toFixed(2)}</b><span>STRENGTH MASS</span></div><div><b>${b.a.dunk>=70?'YES':'NO'}</b><span>CONTACT DUNKS</span></div>`;
+  commitBuild();
   if(rebuild||BU.dirty){if(BU.pl)BU.pl.dispose();BU.pl=new Player(b,BU.forP===1&&settings.mode==='versus'?1:0,{noHud:true,scene:BU.scene});BU.pl.pos.set(0,0,0);BU.pl.facing=0;BU.dirty=false;}
 }
 function builderFrame(dt){
