@@ -861,6 +861,7 @@ function passLaneOpen(p,to){for(const o of opps(p)){const r=segDist(o.pos.x,o.po
 function laneOpen(p,w){const tx=HOOP.x,tz=HOOP.z+0.9;for(const o of opps(p)){const r=segDist(o.pos.x,o.pos.z,p.pos.x,p.pos.z,tx,tz);if(r.inside&&r.d<w)return false;}return true;}
 function frontDefender(p,range){const dx=HOOP.x-p.pos.x,dz=HOOP.z-p.pos.z,D=hyp(dx,dz)||1;let best=null,bd=1e9;
   for(const o of opps(p)){if(o.state==='down'||o.state==='stumble')continue;const ox=o.pos.x-p.pos.x,oz=o.pos.z-p.pos.z,od=hyp(ox,oz);if(od>range)continue;if((ox*dx+oz*dz)/(od*D||1)<0.45)continue;if(od<bd){bd=od;best=o;}}return best;}
+const behindBoard=p=>p.pos.z<BOARD.z+0.05&&Math.abs(p.pos.x-HOOP.x)<BOARD.x1+0.6;
 function contestFor(p){
   let best=0;const hx=HOOP.x-p.pos.x,hz=HOOP.z-p.pos.z,hl=hyp(hx,hz)||1;
   for(const o of opps(p)){if(['stumble','down','bumped'].includes(o.state))continue;
@@ -868,6 +869,7 @@ function contestFor(p){
     const dot=(dx*hx+dz*hz)/(d*hl);if(dot<-0.1)c*=0.3;else if(dot<0.4)c*=0.7;
     c*=0.72+0.42*o.n('perim');c*=1+clamp((o.d.reach-p.d.reach)*0.8,-0.25,0.3);
     if(o.y>0.1||o.state==='block'||o.armsUp)c*=1.3;if(!o.isHuman)c*=0.78;best=Math.max(best,c);}
+  if(p.shotType==='fade'&&(p.state==='shoot'||p.state==='follow'))best*=0.65;
   return clamp(best,0,1);
 }
 function jumperRating(p){const D=hoopDist(p.pos.x,p.pos.z);if(D<3.2)return p.n('close')*0.5+p.n('mid')*0.5;return isThree(p.pos.x,p.pos.z)?p.n('three'):p.n('mid');}
@@ -943,7 +945,7 @@ function startShot(p){
   if(!p.isHuman)p.aiU=clamp(1+gauss()*sigmaOf(p),0.5,AUTO_U-0.05);
 }
 function releaseJumper(p){
-  const u=p.st/METER_T,auto=u>=AUTO_U,c=contestFor(p),w=greenWindow(p,c),d=u-1,green=!auto&&Math.abs(d)<=w;
+  const u=p.st/METER_T,auto=u>=AUTO_U,c=contestFor(p),w=greenWindow(p,c),d=u-1,green=!auto&&!behindBoard(p)&&Math.abs(d)<=w;
   p.shotReleased=true;p.state='follow';p.st=0;
   launchShot(p,green,'jumper',{early:auto||d<0,sev:auto?1.2:Math.max(0,Math.abs(d)-w)});
   if(p.isHuman){const M=meterFor(p)||{};netEv('_meter',[players.indexOf(p),meterFill(u),green?1:0,w,c]);M.fill=meterFill(u);M.res=green?1:0;M.t=0.8;M.w=w;M.cv=c;
@@ -951,15 +953,19 @@ function releaseJumper(p){
     if(green){p.stats.greens++;sfx.green();}else sfx.miss();}
 }
 function launchShot(p,make,kind,miss){
+  const behind=behindBoard(p);if(behind)make=false;
   const b=ball,D=hoopDist(p.pos.x,p.pos.z),three=kind==='jumper'&&isThree(p.pos.x,p.pos.z);
   let tx=HOOP.x,tz=HOOP.z;
   if(make){tx+=rand(-0.03,0.03);tz+=rand(-0.03,0.03);}
+  else if(behind){tx+=rand(-0.1,0.1);}
   else{const sx=p.pos.x-HOOP.x,sz=p.pos.z-HOOP.z,sl=hyp(sx,sz)||1,ux=sx/sl,uz=sz/sl;const sev=miss?miss.sev:rand(0,0.1),early=miss?miss.early:Math.random()<0.5;
     const r=0.2+Math.min(0.6,sev*2.2)+rand(0,0.05),f=early?1:-1,lat=rand(-0.35,0.35)*(0.5+sev*2);tx+=ux*r*f-uz*lat;tz+=uz*r*f+ux*lat;}
   const apex=kind==='floater'?1.25:kind==='layup'?0.42:kind==='reverse'?0.5:kind==='euro'?0.45:0.9+D*0.12;
   const H=Math.max(b.pos.y,HOOP.y)+apex,vy=Math.sqrt(2*G*(H-b.pos.y)),T=vy/G+Math.sqrt(2*(H-HOOP.y)/G);
-  b.vel.set((tx-b.pos.x)/T,vy,(tz-b.pos.z)/T);b.mode='air';b.holder=null;b.pass=null;b.noCatch=p;b.noCatchT=0.3;b.spin=-16;b.stuckT=0;
-  b.shot={shooter:p,team:p.team,three,make,t:0,touched:false,blocked:false,scored:false,dunk:false,kind,tried:new Set()};
+  b.vel.set((tx-b.pos.x)/T,vy,(tz-b.pos.z)/T);
+  if(behind){const ty=3.4,tzb=BOARD.z-0.03-BALL_R,H2=Math.max(b.pos.y,ty)+0.5,vy2=Math.sqrt(2*G*(H2-b.pos.y)),T2=vy2/G+Math.sqrt(2*(H2-ty)/G);b.vel.set((clamp(tx,-0.7,0.7)-b.pos.x)/T2,vy2,(tzb-b.pos.z)/T2);}
+  b.mode='air';b.holder=null;b.pass=null;b.noCatch=p;b.noCatchT=0.3;b.spin=-16;b.stuckT=0;
+  b.shot={noScore:behind,shooter:p,team:p.team,three,make,t:0,touched:false,blocked:false,scored:false,dunk:false,kind,tried:new Set()};
   if(p.isHuman)p.stats.fga++;
   const k=kind+(make?'+':'-');game.dbg[k]=(game.dbg[k]||0)+1;
 }
@@ -1169,7 +1175,8 @@ function aiUpdate(p,dt){
   if(game.poss===p.team)offBallAI(p,dt);else defenseAI(p,dt);
 }
 function finish(p){const D=hoopDist(p.pos.x,p.pos.z);
-  if(canDunk(p)&&D<dunkRange(p)&&Math.random()<0.4+0.5*p.n('dunk'))startDunk(p);
+  if(behindBoard(p))startShot(p);
+  else if(canDunk(p)&&D<dunkRange(p)&&Math.random()<0.4+0.5*p.n('dunk'))startDunk(p);
   else if(D<2.4)startLayup(p);else if(D<3.6&&p.n('close')>0.35)startFloater(p);else startShot(p);}
 function handlerAI(p,dt){
   const a=p.ai;a.hold+=dt;if(busy(p)||!p.grounded)return;
@@ -1307,7 +1314,8 @@ function humanControl(p,dt){
       if(game.needsClear){pulseChip();}
       else if(canAct(p)&&p.grounded){
         const D=hoopDist(p.pos.x,p.pos.z),toward=(p.vel.x*(HOOP.x-p.pos.x)+p.vel.z*(HOOP.z-p.pos.z))/(D||1),spd=hyp(p.vel.x,p.vel.z);
-        if(sprint&&canDunk(p)&&D<=dunkRange(p)&&toward>1.5)startDunk(p);
+        if(behindBoard(p))startShot(p);
+        else if(sprint&&canDunk(p)&&D<=dunkRange(p)&&toward>1.5)startDunk(p);
         else if(D<2.3)startLayup(p);
         else if(D<3.3&&sprint&&toward>2)startLayup(p);
         else if(D<3.7&&toward>2.5&&spd>3)startFloater(p);
@@ -1440,7 +1448,9 @@ function ballStep(h){
   if(b.pos.x>BOUNDS.x1+0.3){b.pos.x=BOUNDS.x1+0.3;b.vel.x=-Math.abs(b.vel.x)*0.5;}
   if(b.pos.z<-1.3){b.pos.z=-1.3;b.vel.z=Math.abs(b.vel.z)*0.5;}
   if(b.pos.z>BOUNDS.z1+0.4){b.pos.z=BOUNDS.z1+0.4;b.vel.z=-Math.abs(b.vel.z)*0.5;}
-  if(b.vel.z<0&&b.pos.z-BALL_R<BOARD.z&&b.pos.z>BOARD.z-0.2&&b.pos.x>BOARD.x0-0.05&&b.pos.x<BOARD.x1+0.05&&b.pos.y>BOARD.y0-0.05&&b.pos.y<BOARD.y1+0.05){
+  if(b.vel.z>0&&b.pos.z<BOARD.z-0.015&&b.pos.z+BALL_R>BOARD.z-0.03&&b.pos.x>BOARD.x0-0.05&&b.pos.x<BOARD.x1+0.05&&b.pos.y>BOARD.y0-0.05&&b.pos.y<BOARD.y1+0.05){
+    b.pos.z=BOARD.z-0.03-BALL_R;b.vel.z=-Math.abs(b.vel.z)*0.6;b.vel.x*=0.9;if(sh)sh.touched=true;sfx.board();}
+  if(b.vel.z<0&&b.pos.z-BALL_R<BOARD.z&&b.pos.z>BOARD.z-0.015&&b.pos.x>BOARD.x0-0.05&&b.pos.x<BOARD.x1+0.05&&b.pos.y>BOARD.y0-0.05&&b.pos.y<BOARD.y1+0.05){
     b.pos.z=BOARD.z+BALL_R;b.vel.z=-b.vel.z*0.62;b.vel.x*=0.9;if(sh)sh.touched=true;sfx.board();}
   if(!(sh&&sh.make&&!sh.blocked)){
     const dx=b.pos.x-HOOP.x,dz=b.pos.z-HOOP.z,hl=hyp(dx,dz)||1e-4,nx=HOOP.x+dx/hl*RIM_R,nz=HOOP.z+dz/hl*RIM_R;
@@ -1449,7 +1459,7 @@ function ballStep(h){
       if(vn<0){b.vel.x-=1.55*vn*ex;b.vel.y-=1.55*vn*ey;b.vel.z-=1.55*vn*ez;b.vel.multiplyScalar(0.86);b.vel.x+=rand(-0.15,0.15);b.vel.z+=rand(-0.15,0.15);if(vn<-0.8){sfx.rim(clamp(-vn/5,0.3,1));rimShake=Math.max(rimShake,0.4);}}
       if(sh&&!sh.touched){sh.touched=true;if(game.phase==='live')game.shotClock=SHOT_CLOCK;}}
   }
-  if(sh&&!sh.scored&&!sh.blocked&&prevY>=HOOP.y&&b.pos.y<HOOP.y&&b.vel.y<0&&hoopDist(b.pos.x,b.pos.z)<RIM_R-0.02&&game.phase==='live'){sh.scored=true;onScore(sh);}
+  if(sh&&!sh.scored&&!sh.blocked&&!sh.noScore&&prevY>=HOOP.y&&b.pos.y<HOOP.y&&b.vel.y<0&&hoopDist(b.pos.x,b.pos.z)<RIM_R-0.02&&game.phase==='live'){sh.scored=true;onScore(sh);}
   else if(sh&&sh.dunk&&sh.make&&!sh.scored&&!sh.blocked&&b.pos.y<HOOP.y-0.05&&hoopDist(b.pos.x,b.pos.z)<0.45&&game.phase==='live'){sh.scored=true;onScore(sh);}
   if(sh&&sh.scored&&b.pos.y>2.55&&b.pos.y<HOOP.y+0.05){b.vel.x*=0.9;b.vel.z*=0.9;if(b.vel.y<-3)b.vel.y*=0.97;}
 }
