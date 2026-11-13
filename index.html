@@ -1135,7 +1135,7 @@ function onCatch(p){
 function onScore(sh){
   if(game.mode==='mycourt'){const s=sh.shooter,pts=sh.dunk?2:(sh.three?3:2);netPulse=1;sfx.swish();if(s.isHuman){s.stats.pts+=pts;s.stats.fgm++;if(sh.dunk)s.stats.dunks++;}const el=$('sBlue');el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump');return;}
   const pts=sh.dunk?2:(sh.three?3:2);game.score[sh.team]+=pts;game.lastScorer=sh.team;game.phase='scored';game.phaseT=0;
-  netPulse=1;sfx.swish();const s=sh.shooter;s.celebrate=true;
+  netPulse=1;sfx.swish();const s=sh.shooter;s.celebrate=true;s.celebType=sh.dunk?'roar':sh.three?'hold':null;
   if(s.isHuman){s.stats.pts+=pts;s.stats.fgm++;if(sh.dunk)s.stats.dunks++;}
   const lbl=sh.poster?'POSTERIZED!':sh.dunk?'SLAM!':(pts===3?'+3':'+2');
   banner(s.isHuman&&game.mode==='solo'?lbl:`<span>${esc(s.label.toUpperCase())}</span> ${lbl}`,sh.team);
@@ -1407,7 +1407,7 @@ function stateTick(p,dt){
     case 'stumble':if(p.st>=1.15)p.state='idle';break;
     case 'down':if(p.st>=1.6)p.state='idle';break;
     case 'bumped':if(p.st>=0.38)p.state='idle';break;
-    case 'celebrate':if(p.grounded&&p.hops<2&&p.st>p.hops*0.5){p.vy=3.2;p.y=0.001;p.hops++;}if(p.st>1.3)p.state='idle';break;
+    case 'celebrate':if(!p.celebType&&p.grounded&&p.hops<2&&p.st>p.hops*0.5){p.vy=3.2;p.y=0.001;p.hops++;}if(p.celebType==='hold'&&p.grounded){const bx=-Math.sin(p.facing)*0.9,bz=-Math.cos(p.facing)*0.9;p.vel.x=bx;p.vel.z=bz;}if(p.st>1.3){p.state='idle';p.celebType=null;}break;
     case 'idle':if(p.mvQ&&ball.holder===p&&p.grounded&&!p.deadBall){const m=p.mvQ.m;p.mvQ=null;p.cool.cross=0;p.combo=(p.combo||0)+1;startMove(p,m[0],m[1]);break;}
       if(p.celebrate&&p.grounded){p.celebrate=false;p.state='celebrate';p.st=0;p.hops=0;}break;
   }
@@ -1685,7 +1685,11 @@ function poseTargets(p,dt){
         else{T.hLX=T.hRX=-1.5;T.kL=0.1;T.kR=0.5;T.spX=-1.1*bk;T.sLX=T.sRX=-0.3+0.9*bk;T.sLZ=1.4;T.sRZ=-1.4;T.hdX=0.3;}
         T.spZ=-0.95*sd;if(sd>0.3){T.sLZ=0.3;T.sLX=0.2;}else if(sd<-0.3){T.sRZ=-0.3;T.sRX=0.2;}}
       break;}
-    case 'celebrate':{const w=Math.sin(p.st*14);T.sLX=-2.8+0.25*w;T.sRX=-2.8-0.25*w;T.sLZ=0.4;T.sRZ=-0.4;T.eL=T.eR=-0.35;T.hdX=-0.25;break;}
+    case 'celebrate':{const w=Math.sin(p.st*14);
+      if(p.celebType==='roar'){const k=smooth(clamp(p.st/0.25,0,1)),pu=0.08*Math.sin(p.st*18);T.hLX=T.hRX=-0.75*k;T.kL=T.kR=1.1*k;T.spX=0.45*k;T.chX=-0.35*k+pu;T.hdX=-0.55*k;T.rootX=0.05*k;
+        T.sLX=T.sRX=-0.55*k;T.sLZ=0.75*k;T.sRZ=-0.75*k;T.eL=T.eR=-1.9*k;T.wLX=T.wRX=0.4*k;break;}
+      if(p.celebType==='hold'){T.sRX=-2.95;T.eR=-0.08;T.wRX=1.1;T.sRZ=-0.05;T.sLX=0.1;T.sLZ=0.15;T.eL=-0.3;T.hdX=-0.2;T.spX=-0.08;break;}
+      T.sLX=-2.8+0.25*w;T.sRX=-2.8-0.25*w;T.sLZ=0.4;T.sRZ=-0.4;T.eL=T.eR=-0.35;T.hdX=-0.25;break;}
   }
   if(p.swatT>0&&p.state!=='block'){const r=1-p.swatT/0.3;T.sRX=lerp(-3.0,-1.7,r);T.eR=-0.1;}
   {const fl=(h,k)=>clamp(-(h+k),-1.2,1.2);if(grounded){T.aLX+=fl(T.hLX,T.kL);T.aRX+=fl(T.hRX,T.kR);}else{T.aLX+=0.3;T.aRX+=0.3;}}
@@ -1921,7 +1925,7 @@ function startOnline(role){
 function hostTick(dt){
   const c=net.conn;if(!c||!c.open)return;net.snapT+=dt;if(net.snapT<1/30)return;net.snapT=0;
   const P=players.map(q=>[+q.pos.x.toFixed(3),+q.pos.z.toFixed(3),+q.y.toFixed(3),+q.facing.toFixed(3),+q.vel.x.toFixed(2),+q.vel.z.toFixed(2),q.state,+q.st.toFixed(3),q.handSide,+q.dribP.toFixed(2),q.crossFrom,q.stance?1:0,q.armsUp?1:0,q.mvBurst?1:0,q.spinDir||1,+q.swatT.toFixed(2),q.sprintOn?1:0,+q.stam.toFixed(3),+q.landT.toFixed(2),q.shotReleased?1:0,q.hangOne?1:0,
-    q.lay?[q.lay.type,q.lay.gatherT,q.lay.launched?1:0,q.lay.side]:0,q.dk?[q.dk.type,q.dk.gatherT,q.dk.slamT,q.dk.launched?1:0,q.dk.dir]:0,q.launched?1:0,q.fin?[q.fin.T,(q.fin.done||q.fin.locked)?1:0]:0]);
+    q.lay?[q.lay.type,q.lay.gatherT,q.lay.launched?1:0,q.lay.side]:0,q.dk?[q.dk.type,q.dk.gatherT,q.dk.slamT,q.dk.launched?1:0,q.dk.dir]:0,q.launched?1:0,q.fin?[q.fin.T,(q.fin.done||q.fin.locked)?1:0]:0,q.celebType||0]);
   try{c.send({t:'snap',g:[game.score[0],game.score[1],+game.shotClock.toFixed(2),game.poss,game.needsClear?1:0,game.phase,+netPulse.toFixed(2),+rimShake.toFixed(2),+game.shake.toFixed(2)],
     b:[ball.pos.x,ball.pos.y,ball.pos.z,players.indexOf(ball.holder),ball.mode==='held'?1:0,ball.vel.x,ball.vel.y,ball.vel.z],p:P,s:humans.map(h=>h.stats),e:net.events.splice(0)});}catch(e){}
 }
@@ -1933,7 +1937,7 @@ function applySnap(m){
   m.p.forEach((a,i)=>{const q=players[i];if(!q)return;q._tp=q._tp||new V3();q._tp.set(a[0],0,a[1]);if(!q._init){q.pos.copy(q._tp);q.facing=a[3];q._init=true;}
     q.y=a[2];q._tf=a[3];q.vel.set(a[4],0,a[5]);q.state=a[6];q.st=a[7];q.handSide=a[8];q.dribP=a[9];q.crossFrom=a[10];q.stance=!!a[11];q.armsUp=!!a[12];q.mvBurst=!!a[13];q.spinDir=a[14];
     q.swatT=a[15];q.sprintOn=!!a[16];q.stam=a[17];q.landT=a[18];q.shotReleased=!!a[19];q.hangOne=!!a[20];
-    q.lay=a[21]?{type:a[21][0],gatherT:a[21][1],launched:!!a[21][2],side:a[21][3]}:q.lay;q.dk=a[22]?{type:a[22][0],gatherT:a[22][1],slamT:a[22][2],launched:!!a[22][3],dir:a[22][4]}:q.dk;q.launched=!!a[23];q.fin=a[24]?{T:a[24][0],done:!!a[24][1],rel:null}:null;});
+    q.lay=a[21]?{type:a[21][0],gatherT:a[21][1],launched:!!a[21][2],side:a[21][3]}:q.lay;q.dk=a[22]?{type:a[22][0],gatherT:a[22][1],slamT:a[22][2],launched:!!a[22][3],dir:a[22][4]}:q.dk;q.launched=!!a[23];q.fin=a[24]?{T:a[24][0],done:!!a[24][1],rel:null}:null;q.celebType=a[25]||null;});
   (m.s||[]).forEach((st,i)=>{if(humans[i])humans[i].stats=st;});
   for(const [k,a] of (m.e||[])){
     if(k==='_card'){const p=players[a[0]];if(p)shotCard(p,a[1],a[2]);}
