@@ -1834,7 +1834,7 @@ function updateHUD(dt){
 
 /* ================= flow ================= */
 function showHudOld(){}
-function showHud(on){meters.forEach(M=>{M.sb.style.display='none';M.sg.style.display='none';M.c.style.display='none';});$('hud').hidden=!on;$('topbtns').hidden=!on;$('hints').hidden=true;$('touch').hidden=!on||!isTouch;}
+function showHud(on){meters.forEach(M=>{M.sb.style.display='none';M.sg.style.display='none';M.c.style.display='none';});$('hud').hidden=!on;$('topbtns').hidden=!on;{const bd=document.querySelector('#hud .board');if(bd)bd.style.display=game.mode==='mycourt'?'none':'';}$('hints').hidden=true;$('touch').hidden=!on||!isTouch;}
 function clearRoster(){for(const p of players)p.dispose();players=[];teams=[[],[]];humans=[];}
 function buildById(id){return builds.find(b=>b.id===id)||builds[0];}
 function makeRoster(mode,demo){
@@ -1902,9 +1902,45 @@ function setNet(t){$('netStatus').textContent=t;}
 function loadPeer(){if(window.Peer)return Promise.resolve();
   const urls=['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js','https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
   return urls.reduce((pr,u)=>pr.catch(()=>new Promise((res,rej)=>{const sc=document.createElement('script');sc.src=u;sc.onload=()=>window.Peer?res():rej();sc.onerror=rej;document.head.appendChild(sc);})),Promise.reject()).catch(()=>{throw new Error('peerjs');});}
+/* ---- relay fallback: when a direct WebRTC link can't open, route the match through a public MQTT broker ---- */
+const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt','wss://test.mosquitto.org:8081/mqtt'],RT='blocktop/v4/';
+function loadMqtt(){if(window.mqtt)return Promise.resolve();
+  const urls=['https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js','https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js'];
+  return urls.reduce((pr,u)=>pr.catch(()=>new Promise((res,rej)=>{const sc=document.createElement('script');sc.src=u;sc.onload=()=>window.mqtt?res():rej();sc.onerror=rej;document.head.appendChild(sc);})),Promise.reject());}
+function mqttConnect(url){return new Promise(res=>{let c,done=false;const fin=v=>{if(!done){done=true;res(v);}};
+  try{c=mqtt.connect(url,{connectTimeout:6000,reconnectPeriod:2000,clean:true,clientId:'bt_'+Math.random().toString(36).slice(2,12)});}catch(e){fin(null);return;}
+  c.once('connect',()=>fin(c));c.on('error',()=>{});setTimeout(()=>{if(!done){try{c.end(true);}catch(e){}fin(null);}},7000);});}
+async function relayClient(){if(net.mq)return net.mq;if(net.mqDead)return null;if(net.mqP)return net.mqP;
+  net.mqP=(async()=>{try{await loadMqtt();}catch(e){return null;}for(const u of BROKERS){const c=await mqttConnect(u);if(c){net.mq=c;return c;}}return null;})();
+  const c=await net.mqP;net.mqP=null;if(!c)net.mqDead=true;return c;}
+function relayConn(client,inT,outT){const h={};let open=true,last=performance.now(),lastOut=0,pend=null;
+  const emit=(e,...a)=>(h[e]||[]).slice().forEach(f=>f(...a));
+  const pub=m=>{try{client.publish(outT,JSON.stringify(m));lastOut=performance.now();}catch(e){}};
+  const onMsg=(t,m)=>{if(t!==inT||!open)return;last=performance.now();let d;try{d=JSON.parse(m.toString());}catch(e){return;}if(!d||d.t==='ping')return;emit('data',d);};
+  client.on('message',onMsg);client.subscribe(inT,{qos:0});
+  const iv=setInterval(()=>{if(!open)return;const now=performance.now();if(pend){pub(pend);pend=null;}else if(now-lastOut>900)pub({t:'ping'});
+    if(now-last>9000){conn.open=open=false;stop();emit('close');}},33);
+  const stop=()=>{clearInterval(iv);try{client.removeListener('message',onMsg);client.unsubscribe(inT);}catch(e){}};
+  const conn={open:true,relay:true,on(e,f){(h[e]=h[e]||[]).push(f);},off(e,f){h[e]=(h[e]||[]).filter(x=>x!==f);},_emit:emit,
+    send(m){if(!open)return;if(m&&m.t==='in'){if(pend){pend.k=m.k;pend.px=m.px;pend.pz=m.pz;pend.pr=pend.pr.concat(m.pr||[]);pend.rl=pend.rl.concat(m.rl||[]);}else pend={t:'in',k:m.k,px:m.px,pz:m.pz,pr:(m.pr||[]).slice(),rl:(m.rl||[]).slice()};return;}pub(m);},
+    close(){if(!open)return;pub({t:'bye'});conn.open=open=false;stop();}};
+  return conn;}
+async function relayListen(slotId){const c=await relayClient();if(!c||!net.searching||net.listenT)return;const jt=RT+slotId+'/join';net.listenT=jt;
+  net.onJoinMsg=(t,m)=>{if(t!==jt)return;let d;try{d=JSON.parse(m.toString());}catch(e){return;}if(!d||d.t!=='join'||!d.g)return;
+    const base=RT+slotId+'/'+d.g+'/';if(net.conn||net.live){try{c.publish(base+'h2g',JSON.stringify({t:'busy'}));}catch(e){}return;}
+    const rc=relayConn(c,base+'g2h',base+'h2g');onHostConn(rc);rc._emit('data',d);};
+  c.on('message',net.onJoinMsg);c.subscribe(jt,{qos:0});}
+function relayJoin(id){return new Promise(async res=>{const c=await relayClient();if(!c||!net.searching){res('unreachable');return;}
+  const g='g'+Math.random().toString(36).slice(2,10),base=RT+id+'/'+g+'/',rc=relayConn(c,base+'h2g',base+'g2h');let done=false;
+  const fin=v=>{if(done)return;done=true;clearInterval(iv);if(v!=='ok')rc.close();res(v);};
+  rc.on('data',m=>{if(done||!m)return;if(m.t==='welcome'){net.conn=rc;fin('ok');onWelcome(m);}else if(m.t==='busy')fin('busy');});
+  const join=()=>{try{c.publish(RT+id+'/join',JSON.stringify({t:'join',g,build:buildById(settings.p1),mate:settings.bots.mate}));}catch(e){}};
+  join();const iv=setInterval(join,1200);setTimeout(()=>fin('unreachable'),5500);});}
 function netCleanup(){net.live=false;net.role=null;net.searching=false;net.events=[];
   for(const o of [net.conn]){try{o&&o.close();}catch(e){}}for(const o of [net.hostPeer,net.guestPeer]){try{o&&o.destroy();}catch(e){}}
-  net.conn=net.hostPeer=net.guestPeer=null;const c=$('netCancel');if(c)c.hidden=true;}
+  net.conn=net.hostPeer=net.guestPeer=null;const c=$('netCancel');if(c)c.hidden=true;
+  clearInterval(net.rescan);clearInterval(net.waitTick);net.rescan=net.waitTick=null;net.scanning=false;
+  if(net.mq){try{if(net.onJoinMsg)net.mq.removeListener('message',net.onJoinMsg);if(net.listenT)net.mq.unsubscribe(net.listenT);net.mq.end(true);}catch(e){}}net.mq=null;net.listenT=null;net.onJoinMsg=null;}
 const PEER_OPTS={debug:0,config:{iceServers:[
   {urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302','stun:stun2.l.google.com:19302']},{urls:'stun:stun.cloudflare.com:3478'},
   {urls:['turn:openrelay.metered.ca:80','turn:openrelay.metered.ca:443','turn:openrelay.metered.ca:443?transport=tcp'],username:'openrelayproject',credential:'openrelayproject'},
@@ -1919,7 +1955,7 @@ function tryJoin(id){return new Promise(res=>{const pr=net.guestPeer;let done=fa
   pr.on('error',onErr);let c;try{c=pr.connect(id,{serialization:'json',reliable:true});}catch(e){fin('none');return;}
   c.on('open',()=>{reached=true;try{c.send({t:'join',build:buildById(settings.p1),mate:settings.bots.mate});}catch(e){}});
   c.on('data',m=>{if(done||!m)return;if(m.t==='welcome'){net.conn=c;fin('ok');onWelcome(m);}else if(m.t==='busy'){fin('busy');try{c.close();}catch(e){}}});
-  c.on('error',()=>{});setTimeout(()=>fin(reached?'none':'unreachable'),12000);});}
+  c.on('error',()=>{});setTimeout(async()=>{if(done)return;if(reached){fin('none');return;}try{pr.off('error',onErr);}catch(e){}const v=await relayJoin(id);fin(v);},5000);});}
 async function tryHost(id){const r=await openPeer(id);if(!r.ok)return r.type==='unavailable-id'?'taken':'fail';
   net.hostPeer=r.peer;r.peer.on('connection',onHostConn);r.peer.on('disconnected',()=>{try{if(!r.peer.destroyed)r.peer.reconnect();}catch(e){}});return 'ok';}
 function onHostConn(c){c.on('data',m=>{if(!m)return;
@@ -1930,32 +1966,46 @@ function onHostConn(c){c.on('data',m=>{if(!m)return;
 function onWelcome(m){net.hostBuild=sanitize(m.build)||AIB.deuce;net.size=m.size===2?2:1;net.hostMate=AIB[m.mate]?m.mate:'deuce';net.guestMate=AIB[m.gmate]?m.gmate:'tank';const c=net.conn;
   c.on('data',d=>{if(!d)return;if(d.t==='snap')applySnap(d);else if(d.t==='over'){game.score=d.score;humans.forEach((h,i)=>{if(d.stats[i])h.stats=d.stats[i];});endGame();}else if(d.t==='restart')startOnline('guest');else if(d.t==='bye')onNetClose();});
   c.on('close',onNetClose);startOnline('guest');}
-async function beginSearch(msg){if(net.searching||net.live)return false;netCleanup();net.searching=true;$('netCancel').hidden=false;$('netCode').textContent='';setNet(msg);
+async function beginSearch(msg){if(net.searching||net.live)return false;netCleanup();net.mqDead=false;net.searching=true;$('netCancel').hidden=false;$('netCode').textContent='';setNet(msg);
   try{await loadPeer();}catch(e){setNet(NOT_HERE);netCleanup();return false;}return true;}
+const qmId=(size,slot)=>'blocktop-qm-v4-'+size+'-'+slot;
 async function quickMatch(){
   net.unreach=0;
   if(!await beginSearch('Connecting to matchmaking…'))return;
   const g=await openPeer(null);if(!net.searching){try{g.peer&&g.peer.destroy();}catch(e){}return;}if(!g.ok){setNet(NOT_HERE);netCleanup();return;}net.guestPeer=g.peer;
-  for(let slot=1;slot<=6&&net.searching;slot++){const id='blocktop-qm-v3-'+net.size+'-'+slot;setNet('Looking for a game…');
-    let r=await tryJoin(id);if(r==='ok'||!net.searching)return;
-    if(r==='unreachable'){net.unreach=(net.unreach||0)+1;setNet('Found a game but the connection is slow, trying again…');r=await tryJoin(id);if(r==='ok'||!net.searching)return;if(r==='unreachable')continue;}
-    if(r==='none'){const h=await tryHost(id);if(h==='ok'){setNet('Waiting for an opponent. Keep this open; the game starts when someone joins.');return;}
-      if(h==='taken'){r=await tryJoin(id);if(r==='ok')return;}else if(h==='fail'){setNet(NOT_HERE);netCleanup();return;}}}
-  if(net.searching){setNet(net.unreach?"Found a game but couldn't connect to it. Your network or theirs may be blocking online play; try Wi-Fi instead of school or work networks, or host a private game.":'No open games right now. Try again, or host a private game and send the code to a friend.');netCleanup();}}
+  const sizes=[net.size,3-net.size];
+  // 1) join any open game, either size
+  for(let slot=1;slot<=6&&net.searching;slot++)for(const sz of sizes){if(!net.searching)return;setNet('Looking for a game…');
+    const r=await tryJoin(qmId(sz,slot));if(r==='ok'||!net.searching)return;if(r==='unreachable')net.unreach++;}
+  // 2) nobody waiting: host the first free slot of my size
+  for(let slot=1;slot<=6&&net.searching;slot++){const id=qmId(net.size,slot);const h=await tryHost(id);
+    if(h==='ok'){waitAsHost(id,slot);return;}
+    if(h==='taken'){const r=await tryJoin(id);if(r==='ok'||!net.searching)return;}
+    else if(h==='fail'){setNet(NOT_HERE);netCleanup();return;}}
+  if(net.searching){setNet(net.unreach?"Found a game but couldn't connect to it. Your network or theirs may be blocking online play; try different Wi-Fi or mobile data.":'No open games right now. Try again, or host a private game and send the code to a friend.');netCleanup();}}
+function waitAsHost(id,slot){relayListen(id);const t0=performance.now();
+  const msg=()=>{const s=Math.floor((performance.now()-t0)/1000);setNet('Waiting for an opponent… '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')+'. Keep this open; the game starts when someone joins.');};msg();
+  net.waitTick=setInterval(()=>{if(!net.searching||net.live){clearInterval(net.waitTick);return;}msg();},1000);
+  // keep looking for another waiting player who ended up in a different queue; only join games "before" ours so two hosts never join each other at once
+  net.rescan=setInterval(async()=>{if(!net.searching||net.live||net.scanning||net.conn)return;net.scanning=true;
+    try{for(const sz of [1,2])for(let s2=1;s2<=6;s2++){const oid=qmId(sz,s2);if(oid>=id||!net.searching||net.live||net.conn)continue;
+      const r=await tryJoin(oid);if(r==='ok'){try{net.hostPeer&&net.hostPeer.destroy();}catch(e){}net.hostPeer=null;return;}}}
+    finally{net.scanning=false;}},12000);}
 async function hostPrivate(){
   if(!await beginSearch('Setting up your game…'))return;
   for(let i=0;i<4&&net.searching;i++){const code=Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');
-    const h=await tryHost('blocktop-pv-v3-'+code);if(h==='ok'){$('netCode').textContent=code;setNet('Send this code to your friend. The game starts when they join.');return;}
+    const h=await tryHost('blocktop-pv-v4-'+code);if(h==='ok'){$('netCode').textContent=code;setNet('Send this code to your friend. The game starts when they join.');relayListen('blocktop-pv-v4-'+code);return;}
     if(h==='fail'){setNet(NOT_HERE);netCleanup();return;}}}
 async function joinCode(){const code=($('codeIn').value||'').trim().toUpperCase();if(code.length<4){setNet('Type the 4-letter code your friend sent you.');return;}
   if(!await beginSearch('Joining '+code+'…'))return;
   const g=await openPeer(null);if(!g.ok){setNet(NOT_HERE);netCleanup();return;}net.guestPeer=g.peer;
-  const r=await tryJoin('blocktop-pv-v3-'+code);if(r==='ok')return;
+  const r=await tryJoin('blocktop-pv-v4-'+code);if(r==='ok')return;
   setNet(r==='busy'?'That game already has two players.':r==='unreachable'?"Found your friend's game but couldn't connect. One of your networks may be blocking online play; try a different Wi-Fi or mobile data.":'No game found with code '+code+'. Check the code and that your friend is still waiting.');netCleanup();}
 function onNetClose(){if(!net.live)return;netCleanup();settings.mode='online';toMenu();setNet('Your opponent left the game.');}
 function leaveToMenu(){if(net.live&&net.conn){try{net.conn.send({t:'bye'});}catch(e){}}netCleanup();toMenu();}
 function startOnline(role){
-  initAudio();net.role=role;net.live=true;net.searching=false;net.events=[];$('netCancel').hidden=true;
+  initAudio();net.role=role;net.live=true;net.searching=false;net.events=[];$('netCancel').hidden=true;clearInterval(net.rescan);clearInterval(net.waitTick);
+  if(role==='guest'&&net.hostPeer){try{net.hostPeer.destroy();}catch(e){}net.hostPeer=null;}
   game.mode='online';game.score=[0,0];game.paused=false;game.shake=0;game.handlerToggle=0;lastHud='';lastHint='';
   const hb=role==='host'?buildById(settings.p1):net.hostBuild,gb=role==='host'?net.guestBuild:buildById(settings.p1);
   clearRoster();
