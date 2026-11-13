@@ -1009,7 +1009,7 @@ function startDunk(p){
   if(def){if(p.b.a.dunk<70){startLayup(p);return;}type='contact';}
   else{const pool=(p.b.dunks||[]).filter(k=>dunkUnlocked(p.b,k));type=pool.length?pool[Math.floor(Math.random()*pool.length)]:'one';}
   const dx=HOOP.x-p.pos.x,dz=HOOP.z-p.pos.z,D=hyp(dx,dz)||1;
-  const gd=G*(1-0.5*p.n('vert')),need=HOOP.y+0.22-p.d.reach,jh=clamp(need+0.3,0.4,Math.max(p.d.jumpH,need+0.1)),vy=Math.sqrt(2*gd*jh),ta=vy/gd,gatherT=0.16;
+  const gd=G*(1-0.5*p.n('vert')),need=HOOP.y+0.22-p.d.reach,jh=clamp(need+0.3,0.4,Math.max(p.d.jumpH,need+0.1)),vy=Math.sqrt(2*gd*jh),ta=vy/gd,gatherT=0.24;
   const travel=Math.max(0,D-0.72-hyp(p.vel.x,p.vel.z)*0.75*gatherT),sp=Math.min(9.5,travel/(ta*0.92));
   p.state='dunk';p.st=0;p.dk={g:gd,type,dir:Math.random()<0.5?-1:1,gatherT,vy,vx:dx/D*sp,vz:dz/D*sp,slamT:gatherT+ta*0.92,slammed:false,launched:false,def};
   p.faceTarget=faceAng(dx,dz);p.wx=p.wz=0;p.vel.multiplyScalar(0.92);startFin(p,p.dk.slamT);
@@ -1032,7 +1032,7 @@ function doSlam(p){
     const hs=p.b.hang||'two';p.vel.set(0,0,0);p.vy=0;
     if(dk.type==='reverse'||hs==='none'){p.state='fall';p.st=0;if(dk.type==='reverse')p.facing=p.faceTarget=faceAng(dx,dz);}
     else{p.state='hang';p.st=0;p.hangOne=hs==='one';p.hangT=0.45+0.5*p.n('vert');p.y=HOOP.y+0.03-(p.d.shoulderY+(p.d.uArm+p.d.fArm+p.d.hand*0.6)*0.96);}
-    if(!reduceMotion)game.shake=poster?0.9:0.65;rimShake=1.5;sfx.slam();noise(0.12,0.4,3000,'highpass',0.002);
+    if(!reduceMotion){game.shake=poster?1.15:0.9;game.hitstop=0.09;}rimShake=2.0;sfx.slam();noise(0.12,0.45,3000,'highpass',0.002);tone(42,0.55,'sine',0.7,28);
     if(poster&&o){o.state='down';o.st=0;const ox=o.pos.x-p.pos.x,oz=o.pos.z-p.pos.z,ol=hyp(ox,oz)||1,fx=Math.sin(o.facing),fz=Math.cos(o.facing);o.fall={b:-(ox*fx+oz*fz)/ol,s:(ox*Math.cos(o.facing)-oz*Math.sin(o.facing))/ol};o.vel.set(ox/ol*2.4,0,oz/ol*2.4);o.y=Math.max(o.y,0);if(p.isHuman)p.stats.posters++;}
   }else{
     const dx=p.pos.x-HOOP.x,dz=p.pos.z-HOOP.z,l=hyp(dx,dz)||1;
@@ -1362,7 +1362,7 @@ function stateTick(p,dt){
       if(p.launched&&!p.released&&p.st>=0.55&&finReady(p)){p.released=true;if(ball.holder===p)releaseFinish(p,'floater');}
       break;
     case 'dunk':{const k=p.dk;
-      if(!k.launched&&p.st>=k.gatherT){k.launched=true;p.vy=k.vy;p.y=0.001;p.vel.set(k.vx,0,k.vz);}
+      if(!k.launched&&p.st>=k.gatherT){k.launched=true;p.vy=k.vy;p.y=0.001;p.vel.set(k.vx,0,k.vz);sfxRaw.thud();if(!reduceMotion)game.shake=Math.max(game.shake,0.15);}
       if(k.launched&&!k.slammed&&p.st>=k.slamT&&finReady(p)){k.slammed=true;doSlam(p);}
       break;}
     case 'hang':if(p.st>(p.hangT||0.5)){p.state='fall';p.st=0;p.vy=0;p.y=Math.max(p.y,0.01);}break;
@@ -1610,7 +1610,9 @@ function poseTargets(p,dt){
       break;}
     case 'floater':if(!p.launched){twoHand(-0.8,-1.5);crouch(-0.35,0.6);}else{const r=clamp((p.st-0.2)/0.35,0,1);T.sRX=lerp(-2.3,-2.65,r);T.eR=lerp(-1.0,-0.2,r);T.sLX=-1.3;T.sLZ=0.6;T.eL=-0.6;T.kL=0.55;T.kR=0.35;T.hLX=-0.35;}break;
     case 'dunk':{const k=p.dk;
-      if(!k.launched){const r=smooth(clamp(p.st/k.gatherT,0,1));twoHand(lerp(-0.7,-0.45,r),-1.7);T.hLX=-0.75*r;T.kL=0.95*r;T.hRX=0.6*r;T.kR=0.75*r;T.spX=0.45*r;T.chX=0.15*r;T.hdX=-0.2;T.rootX=0.12*r;break;}
+      if(!k.launched){const t=clamp(p.st/k.gatherT,0,1),sink=smooth(clamp(t/0.6,0,1)),sw=smooth(clamp((t-0.55)/0.45,0,1));
+        T.hLX=-1.2*sink;T.kL=1.9*sink;T.hRX=lerp(0.5,-0.55,sink);T.kR=lerp(0.7,1.75,sink);T.spX=0.75*sink-0.15*sw;T.chX=0.2*sink;T.hdX=-0.35*sink;T.rootX=0.1*sink;
+        T.sLX=T.sRX=lerp(-0.55,0.75,sw);T.eL=T.eR=lerp(-1.2,-0.35,sw);T.sLZ=-0.32;T.sRZ=0.32;T.aLX=T.aRX=-0.2*sink;break;}
       const r=clamp((p.st-k.gatherT)/(k.slamT-k.gatherT),0,1),cock=smooth(clamp(r/0.6,0,1)),whip=smooth(clamp((r-0.78)/0.22,0,1));
       {const fl=smooth(clamp(r/0.3,0,1));
         T.hLX=lerp(-1.5,-1.15,fl)+0.55*whip;T.kL=lerp(1.5,1.25,fl)-0.5*whip;
@@ -1625,8 +1627,11 @@ function poseTargets(p,dt){
         case 'two':T.sLX=T.sRX=lerp(-1.4,-3.35,cock)+1.15*whip;T.eL=T.eR=lerp(-1.6,-1.8,cock)+1.7*whip;T.sLZ=lerp(-0.2,0.25,cock)-0.35*whip;T.sRZ=-T.sLZ;T.wLX=T.wRX=lerp(0,0.7,cock)-1.4*whip;break;
         case 'one':T.sRX=lerp(-1.4,-3.2,cock)+1.0*whip;T.eR=lerp(-1.6,-1.5,cock)+1.4*whip;T.wRX=lerp(0,0.6,cock)-1.3*whip;T.sLX=-1.5;T.sLZ=0.5;T.eL=-0.6;break;
         case 'contact':T.spX=lerp(0.3,0.15,cock)+0.5*whip;T.spZ=0.25;T.chY=0.3;T.sLX=-1.35;T.eL=-1.6;T.sLZ=-0.3;T.sLY=-0.3;T.sRX=lerp(-1.4,-3.4,cock)+1.4*whip;T.eR=lerp(-1.4,-1.6,cock)+1.5*whip;T.wRX=lerp(0,0.7,cock)-1.4*whip;break;
-        case 'clutch':{const cc=r<0.45?0:r<0.7?(r-0.45)/0.25:Math.max(0,1-(r-0.7)/0.1);T.sLZ=-0.2;T.sRZ=0.2;T.kL=T.kR=1.4;T.hLX=T.hRX=-0.9;
-          if(whip>0){T.sLX=T.sRX=lerp(-3.0,-2.0,whip);T.eL=T.eR=lerp(-1.2,-0.05,whip);}else{T.sLX=T.sRX=lerp(-3.0,-0.7,cc);T.eL=T.eR=lerp(-1.2,-1.6,cc);}break;}
+        case 'clutch':{const up=smooth(clamp(r/0.28,0,1)),dn=smooth(clamp((r-0.3)/0.18,0,1)),re=smooth(clamp((r-0.52)/0.25,0,1));
+          let sx=lerp(-1.3,-3.1,up),e=lerp(-1.6,-0.9,up);sx=lerp(sx,-0.25,dn);e=lerp(e,-1.0,dn);sx=lerp(sx,-3.5,re);e=lerp(e,-1.6,re);
+          sx+=1.4*whip;e=lerp(e,-0.05,whip);T.sLX=T.sRX=sx;T.eL=T.eR=e;T.sLZ=-0.35;T.sRZ=0.35;T.wLX=T.wRX=lerp(0.6,-1.3,whip);
+          const crunch=dn*(1-re);T.spX=0.7*crunch-0.45*re*(1-whip)+0.9*whip;T.chX=0.35*crunch-0.25*re+0.4*whip;T.hdX=-0.1-0.3*re+0.3*whip;
+          T.hLX=lerp(T.hLX,-1.5,crunch);T.kL=lerp(T.kL,2.1,crunch);T.hRX=lerp(T.hRX,-1.4,crunch);T.kR=lerp(T.kR,2.1,crunch);break;}
         case 'reverse':{const up=smooth(clamp(r/0.3,0,1)),dn=smooth(clamp((r-0.3)/0.22,0,1)),bk=smooth(clamp((r-0.55)/0.25,0,1));
           let sx=lerp(-1.3,-2.9,up),e=lerp(-1.6,-1.0,up);sx=lerp(sx,-0.55,dn);e=lerp(e,-1.65,dn);sx=lerp(sx,-3.45,bk);e=lerp(e,-1.45,bk);
           sx+=0.5*whip;e=lerp(e,-0.1,whip);T.sLX=T.sRX=sx;T.eL=T.eR=e;T.sLZ=-0.3;T.sRZ=0.3;T.wLX=T.wRX=lerp(0.4,-1.1,whip);
@@ -2061,7 +2066,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&game.mode!
 let last=performance.now();
 function frame(t){
   requestAnimationFrame(frame);
-  const dt=Math.min(0.033,Math.max(0,(t-last)/1000));last=t;clockT+=dt;
+  let dt=Math.min(0.033,Math.max(0,(t-last)/1000));last=t;if(game.hitstop>0){game.hitstop-=dt;dt*=0.12;}clockT+=dt;
   const playing=game.phase!=='menu'&&game.phase!=='over'&&!game.paused;
   if(net.live&&net.role==='guest'){if(game.phase!=='over')guestTick(dt);}
   else if(playing){update(dt);if(net.live&&net.role==='host')hostTick(dt);}
@@ -2071,7 +2076,7 @@ function frame(t){
   ballMesh.position.copy(ball.pos);
   if(netPulse>0){netPulse=Math.max(0,netPulse-dt*2.2);const q=Math.sin(netPulse*Math.PI);netMesh.scale.set(1-0.18*q,1+0.45*q,1-0.18*q);}
   if(rimShake>0){rimShake=Math.max(0,rimShake-dt*3);rimMesh.position.y=HOOP.y-0.04*Math.min(1,rimShake)*Math.sin(clockT*60);}
-  {const hanging=players.some(q=>q.state==='hang');const flex=hanging?0.13:0.12*Math.min(1,rimShake)*(0.6+0.4*Math.sin(clockT*40));rimMesh.rotation.x=Math.PI/2+flex;}
+  {const hanging=players.some(q=>q.state==='hang');const flex=hanging?0.17:0.16*Math.min(1,rimShake)*(0.6+0.4*Math.sin(clockT*40));rimMesh.rotation.x=Math.PI/2+flex;}
   if(machineKick>0&&machine){machineKick=Math.max(0,machineKick-dt*4);machine.userData.chute.position.z=0.3+0.12*machineKick;}
   updateCamera(dt);updateHUD(dt);
   renderer.render(scene,camera);
