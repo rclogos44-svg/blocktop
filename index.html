@@ -988,7 +988,7 @@ function finWindow(p,c,kind){
   const r=kind==='floater'?p.n('close')*0.7+p.n('mid')*0.3:p.n('layup')*0.65+p.n('close')*0.35;
   return clamp(0.4*(1-c*(0.85-0.35*r)),0.02,0.4);}
 function finKind(p){return p.state==='dunk'?'dunk':p.state==='floater'?'floater':(p.lay?p.lay.type:'layup');}
-function startFin(p,T){p.fin={T,rel:null,done:false,ai:p.isHuman?null:1+gauss()*sigmaOf(p)*0.9};}
+function startFin(p,T){p.fin={T,rel:null,done:false,ai:p.isHuman?null:1+gauss()*sigmaOf(p)*2.2};}
 const finReady=p=>!p.fin||!p.isHuman||p.fin.rel!=null||p.st/p.fin.T>=1.5;
 function finContest(p,kind){let c=kind==='dunk'?dunkContest(p):Math.max(contestFor(p)*0.6,dunkContest(p));if(kind==='euro')c*=0.55;if(kind==='floater')c*=0.6;return c;}
 function lockFin(p){const F=p.fin,kind=finKind(p);F.rel=p.st;F.c=finContest(p,kind);F.w=finWindow(p,F.c,kind);F.locked=true;finFeedback(p,F.rel/F.T,F.w,F.c);}
@@ -1228,8 +1228,10 @@ function defenseAI(p,dt){
   const man=p.assign;if(!man)return;p.stance=true;
   const h=ball.holder,mx=man.pos.x,mz=man.pos.z,dxh=HOOP.x-mx,dzh=HOOP.z-mz,dl=hyp(dxh,dzh)||1;
   const off=h===man?Math.min(1.25,dl*0.38):Math.min(1.9,dl*0.42);
-  let tx=mx+dxh/dl*off,tz=mz+dzh/dl*off;if(h&&h!==man){tx+=(h.pos.x-mx)*0.22;tz+=(h.pos.z-mz)*0.22;}
-  setWant(p,tx,tz,p.d.run*(0.92+0.15*p.n('perim')),0.12);
+  let tx=mx+dxh/dl*off,tz=mz+dzh/dl*off,help=false;if(h&&h!==man){tx+=(h.pos.x-mx)*0.22;tz+=(h.pos.z-mz)*0.22;
+    const hD=hoopDist(h.pos.x,h.pos.z),hd=opps(h).find(o=>o.assign===h)||nearestOpp(h).o,beat=!hd||hd===p||hoopDist(hd.pos.x,hd.pos.z)>hD-0.2||dist(hd,h)>1.6;
+    if(hD<5.2&&beat&&hD>0.9&&ball.mode==='held'){const ux=(HOOP.x-h.pos.x)/hD,uz=(HOOP.z-h.pos.z)/hD,st=Math.min(1.25,hD*0.45);tx=h.pos.x+ux*st;tz=h.pos.z+uz*st;help=true;}}
+  setWant(p,tx,tz,(help?p.d.sprint*0.9:p.d.run)*(0.92+0.15*p.n('perim')),0.12);if(help){p.sprinting=true;p.armsUp=true;}
   setFace(p,faceAng(mx-p.pos.x,mz-p.pos.z));
   const d=dist(p,man),shooting=man.state==='shoot'||man.state==='layup'||man.state==='dunk'||man.state==='floater';
   if(h===man){
