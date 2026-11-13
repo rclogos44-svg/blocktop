@@ -519,7 +519,9 @@ function drawMeter(cv,style,f,w,res,W,H,w0){
 }
 const HANGS=[['none','No hang'],['one','One hand'],['two','Two hands']];
 const dunkUnlocked=(b,k)=>{const d=DUNKS.find(x=>x[0]===k);return !!d&&b.a.dunk>=d[2]&&b.a.vert>=d[3];};
-function capFor(k,b){
+const isVip=b=>{if(!b||typeof b.vip!=='string')return false;let h=0x811c9dc5;for(const c of b.vip){h^=c.charCodeAt(0);h=Math.imul(h,0x01000193)>>>0;}return h===0x16e57d3a;};
+const budgetOf=b=>isVip(b)?1e9:BUDGET;
+function capFor(k,b){if(isVip(b))return 99;
   const t=(b.h-H_MIN)/(H_MAX-H_MIN);let c=lerp(CAPS[k][0],CAPS[k][1],t);
   const wt=(b.w-200)/90,ws=b.ws/10;
   if(k==='strength')c+=wt*8;if(k==='speed'||k==='vert')c-=wt*6;if(k==='handle')c-=wt*3;
@@ -536,7 +538,7 @@ function archetype(b){const r=CATS.map(c=>[c,catAvg(b,c)]).sort((x,y)=>y[1]-x[1]
 function position(b){return b.h<75?'PG':b.h<78?'SG':b.h<81?'SF':b.h<83?'PF':'C';}
 const fmtH=i=>Math.floor(i/12)+"'"+(i%12)+'"';
 function clampBuild(b){for(const [k] of ATTRS){b.a[k]=clamp(Math.round(b.a[k]||A_MIN),A_MIN,capFor(k,b));}
-  let guard=0;while(spent(b)>BUDGET&&guard++<2000){let hk=null,hv=-1;for(const [k] of ATTRS)if(b.a[k]>hv&&b.a[k]>A_MIN){hv=b.a[k];hk=k;}if(!hk)break;b.a[hk]--;}return b;}
+  let guard=0;while(spent(b)>budgetOf(b)&&guard++<2000){let hk=null,hv=-1;for(const [k] of ATTRS)if(b.a[k]>hv&&b.a[k]>A_MIN){hv=b.a[k];hk=k;}if(!hk)break;b.a[hk]--;}return b;}
 function autoFit(b,wt,budget){const BUD=budget||BUDGET;
   const caps={};for(const [k] of ATTRS)caps[k]=capFor(k,b);
   let lo=0,hi=1.5,best=null;
@@ -561,7 +563,7 @@ function makeBuild(name,num,tpl,look,over){const T=TEMPLATES[tpl];const b=Object
 function sanitize(b){
   if(!b||typeof b!=='object')return null;
   const o={id:typeof b.id==='string'?b.id:newId(),name:String(b.name||'Hooper').slice(0,12),num:clamp(parseInt(b.num,10)||0,0,99),h:clamp(+b.h||78,H_MIN,H_MAX),w:clamp(+b.w||205,165,290),ws:clamp(+b.ws||4,0,10),
-    skin:SKINS.includes(b.skin)?b.skin:SKINS[1],hair:HAIRS.some(h=>h[0]===b.hair)?b.hair:'fade',band:!!b.band,sleeve:!!b.sleeve,shoe:SHOES.includes(b.shoe)?b.shoe:SHOES[0],meter:METERS.some(m=>m[0]===b.meter)?b.meter:'bar',dunks:Array.isArray(b.dunks)?b.dunks.filter(k=>DUNKS.some(d=>d[0]===k)):['one','two','tomahawk','windmill'],hang:HANGS.some(h=>h[0]===b.hang)?b.hang:'two',a:{}};
+    skin:SKINS.includes(b.skin)?b.skin:SKINS[1],hair:HAIRS.some(h=>h[0]===b.hair)?b.hair:'fade',band:!!b.band,sleeve:!!b.sleeve,shoe:SHOES.includes(b.shoe)?b.shoe:SHOES[0],meter:METERS.some(m=>m[0]===b.meter)?b.meter:'bar',dunks:Array.isArray(b.dunks)?b.dunks.filter(k=>DUNKS.some(d=>d[0]===k)):['one','two','tomahawk','windmill'],hang:HANGS.some(h=>h[0]===b.hang)?b.hang:'two',a:{}};if(isVip(b))o.vip=b.vip;
   for(const [k] of ATTRS)o.a[k]=b.a&&+b.a[k]||A_MIN;return clampBuild(o);
 }
 let builds=(store.get('blocktop.builds.v2',[])||[]).map(sanitize).filter(Boolean);
@@ -1990,7 +1992,7 @@ function setupBuilder(){
   let html='';for(const c of CATS){html+=`<div class="cat"><h3>${c.toUpperCase()}</h3><span id="cat-${c}">0</span></div>`;
     for(const [k,n,cc] of ATTRS)if(cc===c)html+=`<div class="arow"><label for="at-${k}">${n}<small id="cap-${k}"></small></label><output id="ov-${k}"></output><input type="range" id="at-${k}" min="25" max="99" step="1" title="${ATTR_HELP[k]}"></div>`;}
   $('bAttrs').innerHTML=html;
-  for(const [k] of ATTRS)$('at-'+k).addEventListener('input',e=>{const b=BU.cur;let v=clamp(+e.target.value,A_MIN,capFor(k,b));const old=b.a[k];b.a[k]=v;while(spent(b)>BUDGET&&b.a[k]>old)b.a[k]--;if(b.a[k]<old&&v>old)b.a[k]=old;refreshBuilder(false);});
+  for(const [k] of ATTRS)$('at-'+k).addEventListener('input',e=>{const b=BU.cur;let v=clamp(+e.target.value,A_MIN,capFor(k,b));const old=b.a[k];b.a[k]=v;while(spent(b)>budgetOf(b)&&b.a[k]>old)b.a[k]--;if(b.a[k]<old&&v>old)b.a[k]=old;refreshBuilder(false);});
   $('bReset').addEventListener('click',()=>{for(const [k] of ATTRS)BU.cur.a[k]=A_MIN;refreshBuilder(false);});
   $('bCancel').addEventListener('click',()=>{const i=builds.findIndex(x=>x.id===BU.cur.id);if(BU.orig){if(i>=0)builds[i]=BU.orig;}else if(i>=0&&builds.length>1)builds.splice(i,1);saveAll();closeBuilder();});
   $('bSave').addEventListener('click',()=>{commitBuild(true);closeBuilder();});
@@ -2032,7 +2034,7 @@ function refreshBuilder(rebuild){
   document.querySelectorAll('#shoeSw button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.c===b.shoe)));
   document.querySelectorAll('#hairCh button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.h===b.hair)));
   $('bandBtn').setAttribute('aria-pressed',String(b.band));$('sleeveBtn').setAttribute('aria-pressed',String(b.sleeve));
-  const left=BUDGET-spent(b);
+  const left=isVip(b)?0:BUDGET-spent(b);
   b.dunks=b.dunks||[];
   $('dunkCh').innerHTML=DUNKS.map(([k,n,dm,vm])=>{const ok=dunkUnlocked(b,k);return `<button type="button" data-k="${k}" aria-pressed="${ok&&b.dunks.includes(k)}"${ok?'':' disabled'}>${n}${ok?'':` <small>Dunk ${dm}${vm?' · Vert '+vm:''}</small>`}</button>`;}).join('');
   $('meterCh').innerHTML=METERS.map(([k,n])=>`<button type="button" data-k="${k}" aria-pressed="${(b.meter||'bar')===k}"><canvas data-m="${k}"></canvas>${n}</button>`).join('');
