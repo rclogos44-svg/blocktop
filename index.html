@@ -438,7 +438,6 @@ function drawMeter(cv,style,f,w,res,W,H){
   W=W||90;H=H||110;const x=cv.getContext('2d'),dpr=cv._dpr||1;x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
   const sc=Math.min(W/90,H/110);x.scale(sc,sc);x.translate((W/sc-90)/2,(H/sc-110)/2);
   f=clamp(f,0,1);w=clamp(w,0.004,0.5);
-  {const g=clamp(0.13+w*2.4,0.15,0.34);f=f<=1-w?f/(1-w)*(1-g):(1-g)+(f-(1-w))/w*g;w=g;}
   const TR='rgba(10,14,28,0.82)',ED='rgba(244,241,234,0.95)',GR='#46ff96',FL=res===1?'#3ff08a':res===-1?'#ff5442':'#f4f1ea';
   x.lineCap='round';x.lineJoin='round';
   const arcM=(cx,cy,r,a0,a1,th)=>{const A=t=>a0+(a1-a0)*t;
