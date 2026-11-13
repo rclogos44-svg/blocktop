@@ -504,9 +504,7 @@ function drawMeter(cv,style,f,w,res,W,H,w0){
     case 'needle':{const cx=45,cy=72,r=34,a0=Math.PI,a1=2*Math.PI,A=t=>a0+(a1-a0)*t;
       x.fillStyle=TR;x.beginPath();x.arc(cx,cy,r+8,a0,a1);x.closePath();x.fill();
       x.lineWidth=5;x.strokeStyle='rgba(244,241,234,0.25)';x.beginPath();x.arc(cx,cy,r,a0,a1);x.stroke();
-      x.lineCap='butt';if(w0&&w0>w+0.002){const W0=Math.min(0.5,w0);x.strokeStyle='rgba(255,84,66,0.9)';x.lineWidth=11;x.beginPath();x.arc(cx,cy,r,A(1-W0),A(1-w));x.stroke();x.strokeStyle='rgba(244,241,234,0.85)';x.lineWidth=2;x.beginPath();x.arc(cx,cy,r+7,A(1-W0),a1);x.stroke();}
-      if(w0){const W0=Math.min(0.9,w0*5),Wc=Math.min(W0,w*5),ri=r-14;x.lineCap='butt';x.lineWidth=7;x.strokeStyle='rgba(244,241,234,0.18)';x.beginPath();x.arc(cx,cy,ri,A(1-0.9),a1);x.stroke();
-        x.strokeStyle='rgba(255,84,66,0.95)';x.beginPath();x.arc(cx,cy,ri,A(1-W0),A(1-Wc));x.stroke();x.strokeStyle=GR;x.beginPath();x.arc(cx,cy,ri,A(1-Wc),a1);x.stroke();}
+      x.lineCap='butt';
       x.strokeStyle=GR;x.shadowColor=GR;x.shadowBlur=10;x.lineWidth=11;x.beginPath();x.arc(cx,cy,r,A(1-w),a1);x.stroke();x.shadowBlur=0;x.lineCap='round';
       for(let i=0;i<=10;i++){const a=A(i/10);x.lineWidth=1.5;x.strokeStyle=ED;x.beginPath();x.moveTo(cx+Math.cos(a)*(r+5),cy+Math.sin(a)*(r+5));x.lineTo(cx+Math.cos(a)*(r+1),cy+Math.sin(a)*(r+1));x.stroke();}
       const a=A(f);x.lineWidth=3;x.strokeStyle=FL;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a)*(r-2),cy+Math.sin(a)*(r-2));x.stroke();x.fillStyle=FL;x.beginPath();x.arc(cx,cy,4,0,7);x.fill();break;}
