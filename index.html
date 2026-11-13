@@ -998,7 +998,7 @@ function startStep(p,k,dir){
 function startMove(p,type,o){
   o=o||{};const f=p.facing,fx=Math.sin(f),fz=Math.cos(f),cx=Math.cos(f),hb=p.n('handle'),esc=!!o.esc,boost=esc?1.25:1;
   p.state=type;p.st=0;p.mvBurst=false;p.mvEsc=esc;p.crossFrom=p.handSide;p.cool.cross=type==='spin'?0.9:0.6;
-  if(type==='cross'||type==='btb'||type==='inout'){const burst=(type==='cross'?4.3+1.8*hb:3.2+1.5*hb)*(esc&&type==='cross'?1.85:boost)*(type==='inout'?0.75:1);let dx,dz;if(o.dir){dx=o.dir.x;dz=o.dir.z;}else{const side=-p.crossFrom;dx=side*cx;dz=-side*fx;}
+  if(type==='cross'||type==='btb'||type==='inout'){const burst=(type==='cross'?3.8+1.6*hb:3.2+1.5*hb)*(esc&&type==='cross'?1.65:boost)*(type==='inout'?0.75:1);let dx,dz;if(o.dir){dx=o.dir.x;dz=o.dir.z;}else{const side=-p.crossFrom;dx=side*cx;dz=-side*fx;}
     const fw=(o.fwd||1.4)*boost;p.vel.x=dx*burst+fx*fw;p.vel.z=dz*burst+fz*fw;anklesCheck(p,(type==='btb'?0.03:0.02)*boost);}
   else if(type==='spin'){p.spinDir=o.spinDir||(Math.random()<0.5?-1:1);const sp=(3.5+1.6*hb)*boost;p.vel.x=fx*sp;p.vel.z=fz*sp;anklesCheck(p,0.02*boost);}
   else if(type==='legs'){const fw=o.queue?2.6+1.2*hb:0.8;p.vel.x=fx*fw;p.vel.z=fz*fw;p.queue=o.queue||null;}
@@ -1321,7 +1321,7 @@ function playerPhysics(p,dt){
     if(!busy(p)||p.state==='reach'){const k=1-Math.exp(-dt*(p.state==='reach'?4:(8+4*p.n('speed'))));let wx=p.wx,wz=p.wz;if(p.slow>0){wx*=0.45;wz*=0.45;}
       if(p.boxedT>0&&p.boxedBy){const nx=p.boxedBy.pos.x-p.pos.x,nz=p.boxedBy.pos.z-p.pos.z,nl=hyp(nx,nz)||1,dp=(wx*nx+wz*nz)/nl;if(dp>0){wx-=nx/nl*dp*0.85;wz-=nz/nl*dp*0.85;}}
       if(p.stam<0.25){const ws=hyp(wx,wz),cap=lerp(p.d.run,p.d.sprint,p.stam/0.25);if(ws>cap){wx*=cap/ws;wz*=cap/ws;}}p.vel.x=lerp(p.vel.x,wx,k);p.vel.z=lerp(p.vel.z,wz,k);}
-    else{const mv={stepthru:3,sidestep:1,pump:12,inout:2.5,cross:p.mvEsc?0.8:1.7,spin:2.5,btb:p.mvEsc?1.6:2.5,legs:2.2,stepback:4,burst:1.2,hesi:p.mvBurst?2:12}[p.state];const f=Math.exp(-dt*(mv!==undefined?mv:gather?(p.state==='layup'&&p.lay.type==='euro'?1:3):p.state==='down'?3:10));p.vel.x*=f;p.vel.z*=f;}
+    else{const mv={stepthru:3,sidestep:1,pump:12,inout:2.5,cross:p.mvEsc?1.0:2.1,spin:2.5,btb:p.mvEsc?1.6:2.5,legs:2.2,stepback:4,burst:1.2,hesi:p.mvBurst?2:12}[p.state];const f=Math.exp(-dt*(mv!==undefined?mv:gather?(p.state==='layup'&&p.lay.type==='euro'?1:3):p.state==='down'?3:10));p.vel.x*=f;p.vel.z*=f;}
   }
   p.pos.x=clamp(p.pos.x+p.vel.x*dt,BOUNDS.x0,BOUNDS.x1);p.pos.z=clamp(p.pos.z+p.vel.z*dt,BOUNDS.z0,BOUNDS.z1);
   p.facing=angLerp(p.facing,p.faceTarget,1-Math.exp(-dt*(busy(p)?18:12)));
