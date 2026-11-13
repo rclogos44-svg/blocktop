@@ -1076,7 +1076,7 @@ function moveIntent(p,I,sprint,mod){
   if(I.pressed.has('spin'))return ['spin',{esc:sprint,spinDir:p.handSide<0?-1:1}];
   return null;}
 function startMove(p,type,o){
-  o=o||{};const f=p.facing,fx=Math.sin(f),fz=Math.cos(f),cx=Math.cos(f),hb=p.n('handle'),esc=!!o.esc,boost=esc?1.1:1;if(esc)p.cool.esc=1.0;
+  o=o||{};const f=p.facing,fx=Math.sin(f),fz=Math.cos(f),cx=Math.cos(f),hb=p.n('handle'),esc=!!o.esc,boost=esc?1.1:1;if(esc)p.cool.esc=0.4;
   p.state=type;p.st=0;p.mvBurst=false;p.mvEsc=esc;p.crossFrom=p.handSide;p.cool.cross=type==='spin'?0.5:0.3;p.comboT=0.7;if((p.combo||0)>=2&&type!=='stepback')anklesCheck(p,0.015*Math.min(p.combo,4));
   if(type==='cross'||type==='btb'||type==='inout'){const burst=(type==='cross'?3.8+1.6*hb:3.2+1.5*hb)*(esc&&type==='cross'?1.08:boost)*(type==='inout'?0.75:1);let dx,dz;if(o.dir){dx=o.dir.x;dz=o.dir.z;}else{const side=-p.crossFrom;dx=side*cx;dz=-side*fx;}
     const fw=(o.fwd||1.4)*boost;p.vel.x=dx*burst+fx*fw;p.vel.z=dz*burst+fz*fw;anklesCheck(p,(type==='btb'?0.03:0.02)*boost);}
