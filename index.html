@@ -115,6 +115,7 @@ h3{font-family:var(--display);font-weight:400;font-size:15px;letter-spacing:.04e
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px}
 .seg#modeSeg{grid-template-columns:repeat(6,1fr)}
 @media (max-width:640px){.seg#modeSeg{grid-template-columns:repeat(3,1fr)}}
+.sprtag{position:fixed;left:0;top:0;display:none;font-family:var(--display);font-size:10px;letter-spacing:.06em;background:var(--ball);color:#1d0d00;border-radius:5px;padding:2px 6px;pointer-events:none;z-index:4;box-shadow:0 0 10px rgba(255,138,43,.7)}
 .stam{position:fixed;left:0;top:0;width:46px;height:5px;border-radius:3px;background:rgba(0,0,0,.6);border:1px solid var(--line);overflow:hidden;pointer-events:none;z-index:4;display:none}
 .stam i{display:block;height:100%;background:var(--chalk)}
 .stam.on i{background:var(--ball)}
@@ -360,7 +361,7 @@ input[type=range].body{background:linear-gradient(to right,var(--blue) 0,var(--b
         <div><div class="label">SKIN</div><div class="swatches" id="skinSw"></div></div>
         <div><div class="label">HAIR</div><div class="chips" id="hairCh"></div></div>
         <div><div class="label">SHOES</div><div class="swatches" id="shoeSw"></div></div>
-        <div><div class="label">SHOT METER</div><div class="chips meterch" id="meterCh"></div></div>
+        <div hidden><div class="label">SHOT METER</div><div class="chips meterch" id="meterCh"></div></div>
         <div class="chips"><button type="button" id="bandBtn" aria-pressed="false">Headband</button><button type="button" id="sleeveBtn" aria-pressed="false">Arm sleeve</button></div>
       </div>
       <div class="bsec">
@@ -1280,13 +1281,11 @@ function humanControl(p,dt){
   if(p.ctrl===0){ix+=touch.x;iz+=touch.y;}
   const il=hyp(ix,iz);if(il>1){ix/=il;iz/=il;}
   if(I.pressed.has('sprint')){p.sprintOn=!p.sprintOn;p.idleT=0;}
-  if(il<0.1){p.idleT=(p.idleT||0)+dt;if(p.idleT>0.6)p.sprintOn=false;}else p.idleT=0;
-  if(p.stam<=0.01)p.sprintOn=false;
-  const has=ball.holder===p,sprint=!!p.sprintOn&&il>0.1;p.sprinting=sprint;
+  const has=ball.holder===p,sprint=!!p.sprintOn;p.sprinting=sprint&&il>0.1;
   const sp=has?(sprint?p.d.sprint*(0.84+0.12*p.n('handle')):p.d.run*0.95):(sprint?p.d.sprint:p.d.run);
   const control=game.phase==='live'||game.phase==='scored';
   p.wx=control?ix*sp:0;p.wz=control?iz*sp:0;
-  p.stance=game.poss!==p.team&&!has&&!sprint;
+  p.stance=game.poss!==p.team&&!has&&!p.sprinting;
   const sh=ball.holder;p.armsUp=!!(sh&&sh.team!==p.team&&dist(sh,p)<2.2&&['shoot','layup','floater','dunk'].includes(sh.state));
   if(il>0.1&&control){if(p.stance&&sh&&sh.team!==p.team&&dist(sh,p)<3)setFace(p,faceAng(sh.pos.x-p.pos.x,sh.pos.z-p.pos.z));else setFace(p,faceAng(ix,iz));}
   else if(has)setFace(p,faceHoop(p));else if(sh&&sh!==p)setFace(p,faceAng(sh.pos.x-p.pos.x,sh.pos.z-p.pos.z));
@@ -1645,7 +1644,7 @@ function animate(p,dt){
     const hx=p.hangOne?p.hR.x:(p.hL.x+p.hR.x)/2,hy=p.hangOne?p.hR.y:(p.hL.y+p.hR.y)/2,hz=p.hangOne?p.hR.z:(p.hL.z+p.hR.z)/2;
     p.pos.x+=tx-hx;p.pos.z+=tz-hz;p.y+=ty-hy;p.g.position.set(p.pos.x,p.y,p.pos.z);p.g.updateMatrixWorld(true);p.tipL.getWorldPosition(p.hL);p.tipR.getWorldPosition(p.hR);}
   p.elL.getWorldPosition(p.eLw);p.elR.getWorldPosition(p.eRw);
-  if(p.ring){p.ring.position.set(p.pos.x,0.015,p.pos.z);const rs=1/(1+p.y*0.6);p.ring.scale.set(rs,rs,rs);p.tag.position.set(p.pos.x,p.y+d.H+0.32,p.pos.z);}
+  if(p.ring){p.ring.position.set(p.pos.x,0.015,p.pos.z);if(p.ringBase===undefined)p.ringBase=p.ring.material.color.getHex();const so=!!p.sprintOn&&game.mode!=='mycourt';p.ring.material.color.setHex(so?0xff8a2b:p.ringBase);const rs=(1/(1+p.y*0.6))*(so?1.08+0.06*Math.sin(clockT*10):1);p.ring.scale.set(rs,rs,rs);p.tag.position.set(p.pos.x,p.y+d.H+0.32,p.pos.z);}
 }
 
 /* ================= camera & HUD ================= */
@@ -1668,7 +1667,8 @@ const meters=[0,1].map(()=>{const m=document.createElement('canvas');m.className
   const tag=document.createElement('div');tag.className='tag2';document.body.appendChild(tag);
   const cc=document.createElement('div');cc.className='mcont';document.body.appendChild(cc);
   const sb=document.createElement('div');sb.className='stam';sb.innerHTML='<i></i>';document.body.appendChild(sb);
-  return {sb,el:m,c:cc,cv:0,card,tag,t:0,fill:0,res:-1,w:0.05,cardP:null,tagP:null};});
+  const sg=document.createElement('div');sg.className='sprtag';sg.textContent='SPRINT';document.body.appendChild(sg);
+  return {sg,sb,el:m,c:cc,cv:0,card,tag,t:0,fill:0,res:-1,w:0.05,cardP:null,tagP:null};});
 function meterFor(p){const i=meterHumans.indexOf(p);return i>=0?meters[i]:null;}
 function shotCard(p,head,sub,tim){netEv('_card',[players.indexOf(p),head,sub]);const M=meterFor(p);if(!M)return;let tl='';
   if(tim){const C=0.5,span=0.35,pct=v=>clamp((v-(C-span))/(2*span)*100,0,100);tl=`<div class="tl"><i class="tz" style="left:${pct(C-tim.w)}%;width:${pct(C+tim.w)-pct(C-tim.w)}%"></i><i class="tc"></i><i class="tk" style="left:${pct(C+tim.d)}%"></i></div>`;}
@@ -1688,13 +1688,14 @@ function updateHUD(dt){
     $('pBlue').classList.toggle('on',game.poss===0);$('pRed').classList.toggle('on',game.poss===1);
     $('chip').hidden=!(game.needsClear&&humans.some(h=>h.team===game.poss)&&game.phase==='live');}
   meters.forEach((M,i)=>{const p=meterHumans[i];
-    if(!p){M.el.style.display='none';M.sb.style.display='none';return;}
+    if(!p){M.el.style.display='none';M.sb.style.display='none';M.sg.style.display='none';return;}
     if(game.mode!=='mycourt'&&localHumans.includes(p)&&(p.stam<0.995||p.sprintOn)){const fp=screenOf(p.pos.x,0,p.pos.z);M.sb.style.display='block';M.sb.style.transform=`translate(${Math.round(fp.x-23)}px,${Math.round(fp.y+14)}px)`;M.sb.firstChild.style.width=(p.stam*100)+'%';M.sb.classList.toggle('on',!!p.sprintOn);}else M.sb.style.display='none';
+    if(game.mode!=='mycourt'&&localHumans.includes(p)&&p.sprintOn){const fp=screenOf(p.pos.x,0,p.pos.z);M.sg.style.display='block';M.sg.style.transform=`translate(${Math.round(fp.x-26)}px,${Math.round(fp.y+22)}px)`;}else M.sg.style.display='none';
     const fin=!!(p.fin&&!p.fin.done&&!p.fin.locked&&(p.state==='layup'||p.state==='floater'||p.state==='dunk'));
     const shooting=(p.state==='shoot'&&!p.shotReleased)||fin;
     if(shooting||M.t>0){M.t=Math.max(0,M.t-dt);
       const f=shooting?meterFill(p.st/(fin?p.fin.T:METER_T)):M.fill,w=shooting?(fin?finWindow(p,finContest(p,finKind(p)),finKind(p)):greenWindow(p,contestFor(p))):M.w,sp=screenOf(p.pos.x,p.y+p.d.H*0.8,p.pos.z);
-      const ms=p.b.meter||'bar',sl=ms==='slider';M.el.style.display='block';M.el.style.transform=sl?`translate(${Math.round(sp.x-67)}px,${Math.round(sp.y-10)}px)`:`translate(${Math.round(sp.x+16)}px,${Math.round(sp.y-125)}px)`;
+      const ms='needle',sl=ms==='slider';M.el.style.display='block';M.el.style.transform=sl?`translate(${Math.round(sp.x-67)}px,${Math.round(sp.y-10)}px)`:`translate(${Math.round(sp.x+16)}px,${Math.round(sp.y-125)}px)`;
       drawMeter(M.el,ms,f,w,shooting?0:(M.res===1?1:-1),135,165);
       {const cv=shooting?contestFor(p):M.cv,cc=cover(cv);M.c.textContent=Math.round(cv*100)+'%';M.c.style.background=cc[1];M.c.style.color='#0c1120';M.c.style.borderColor=cc[1];}M.c.style.transform=`translate(${Math.round(sp.x+26)}px,${Math.round(sp.y+28)}px)`;M.c.style.display='block';
     }else{M.el.style.display='none';M.c.style.display='none';}
@@ -1717,7 +1718,7 @@ function updateHUD(dt){
 
 /* ================= flow ================= */
 function showHudOld(){}
-function showHud(on){meters.forEach(M=>{M.sb.style.display='none';M.c.style.display='none';});$('hud').hidden=!on;$('topbtns').hidden=!on;$('hints').hidden=!on||(isTouch&&localHumans.length<2);$('touch').hidden=!on||!isTouch;}
+function showHud(on){meters.forEach(M=>{M.sb.style.display='none';M.sg.style.display='none';M.c.style.display='none';});$('hud').hidden=!on;$('topbtns').hidden=!on;$('hints').hidden=!on||(isTouch&&localHumans.length<2);$('touch').hidden=!on||!isTouch;}
 function clearRoster(){for(const p of players)p.dispose();players=[];teams=[[],[]];humans=[];}
 function buildById(id){return builds.find(b=>b.id===id)||builds[0];}
 function makeRoster(mode,demo){
