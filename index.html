@@ -1174,7 +1174,7 @@ function checkBall(team){
 function predictLanding(){const b=ball;let x=b.pos.x,y=b.pos.y,z=b.pos.z,vx=b.vel.x,vy=b.vel.y,vz=b.vel.z;const h=1/60;
   for(let i=0;i<90;i++){vy-=G*h;x+=vx*h;y+=vy*h;z+=vz*h;if(vy<0&&y<1.6)break;}return {x:clamp(x,-8,8),z:clamp(z,-0.4,15)};}
 function aiUpdate(p,dt){
-  p.wx=0;p.wz=0;p.stance=false;p.armsUp=false;p.sprinting=false;
+  p.wx=0;p.wz=0;p.screening=false;p.stance=false;p.armsUp=false;p.sprinting=false;
   if(game.phase!=='live'){if(!busy(p))p.faceTarget=faceHoop(p);return;}
   if(p.jumpPlan>0){p.jumpPlan-=dt;if(p.jumpPlan<=0&&canAct(p)&&p.grounded)startJump(p,'block');}
   const b=ball;
@@ -1221,7 +1221,17 @@ function handlerAI(p,dt){
   if(a.probe)setWant(p,a.probe.x,a.probe.z,sp*0.75,0.3);
 }
 function offBallAI(p,dt){
-  const a=p.ai,h=ball.holder;a.spotT-=dt;
+  const a=p.ai,h=ball.holder;a.spotT-=dt;p.screening=false;
+  if(h&&h.team===p.team&&!game.needsClear&&game.mode!=='mycourt'){const hd=opps(h).find(o=>o.assign===h),HD=hoopDist(h.pos.x,h.pos.z);
+    if(a.scr){a.scr.t-=dt;
+      if(!hd||a.scr.h!==h){a.scr=null;}
+      else if(a.scr.ph==='set'){const ux=hd.pos.x-h.pos.x,uz=hd.pos.z-h.pos.z,ul=hyp(ux,uz)||1,sd=Math.sign(-h.pos.x)||1,px=-uz/ul*sd,pz=ux/ul*sd;
+        const sx=hd.pos.x+px*0.62-ux/ul*0.1,sz=hd.pos.z+pz*0.62-uz/ul*0.1;p.sprinting=true;setWant(p,sx,sz,p.d.sprint*0.9,0.05);setFace(p,faceAng(h.pos.x-p.pos.x,h.pos.z-p.pos.z));
+        if(hyp(sx-p.pos.x,sz-p.pos.z)<0.4){a.scr.ph='hold';a.scr.t=1.0;if(!h.isHuman&&canAct(h)&&h.grounded){h.ai.mode='drive';h.ai.driveT=1.8;}}else if(a.scr.t<=0)a.scr=null;return;}
+      else if(a.scr.ph==='hold'){p.wx=p.wz=0;p.screening=true;p.stance=true;setFace(p,faceAng(h.pos.x-p.pos.x,h.pos.z-p.pos.z));if(a.scr.t<=0){a.scr.ph='roll';a.scr.t=1.5;}return;}
+      else{p.sprinting=true;setWant(p,HOOP.x+(p.pos.x>0?0.9:-0.9),HOOP.z+1.6,p.d.sprint*0.9,0.2);setFace(p,faceAng(h.pos.x-p.pos.x,h.pos.z-p.pos.z));if(a.scr.t<=0){a.scr=null;a.spotT=0;}return;}}
+    else if(hd&&HD>5&&HD<8.8&&dist(hd,h)<1.9&&dist(p,h)<7&&Math.random()<dt*0.22){a.scr={ph:'set',t:2.2,h};}}
+  else a.scr=null;
   if(!a.spot||a.spotT<=0){
     let best=null,bs=-1e9;
     for(const s of SPOTS){const dh=h?hyp(s.x-h.pos.x,s.z-h.pos.z):5;if(dh<3.2)continue;
@@ -1437,7 +1447,7 @@ function contacts(){
     if(Math.abs(a.y-b.y)>0.9&&!(dk&&(dk===a?b:a).y<0.3))continue;
     let dx=b.pos.x-a.pos.x,dz=b.pos.z-a.pos.z,d=hyp(dx,dz);const minD=a.d.r+b.d.r;if(d>=minD||d<1e-4)continue;
     const nx=dx/d,nz=dz/d;
-    const eff=p=>p.d.mass*(p.state==='dunk'?2.6:1)*(p.boxing?1.8:1)*(p.stance&&p.grounded?1.15:1)*(p.y>0.05&&p.state!=='dunk'?0.5:1)*(p.state==='down'||p.state==='stumble'?0.3:1);
+    const eff=p=>p.d.mass*(p.state==='dunk'?2.6:1)*(p.boxing?1.8:1)*(p.screening?2.2:1)*(p.stance&&p.grounded?1.15:1)*(p.y>0.05&&p.state!=='dunk'?0.5:1)*(p.state==='down'||p.state==='stumble'?0.3:1);
     const ma=eff(a),mb=eff(b),ov=minD-d;
     a.pos.x-=nx*ov*mb/(ma+mb);a.pos.z-=nz*ov*mb/(ma+mb);b.pos.x+=nx*ov*ma/(ma+mb);b.pos.z+=nz*ov*ma/(ma+mb);
     if(a.team===b.team)continue;
