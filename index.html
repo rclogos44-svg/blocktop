@@ -827,8 +827,13 @@ const audio={ctx:null,master:null,muted:false,noise:null};
 function initAudio(){
   if(audio.ctx)return;
   try{const C=window.AudioContext||window.webkitAudioContext;audio.ctx=new C();audio.master=audio.ctx.createGain();audio.master.gain.value=audio.muted?0:0.6;audio.master.connect(audio.ctx.destination);
-    const len=Math.floor(audio.ctx.sampleRate*1.6),buf=audio.ctx.createBuffer(1,len,audio.ctx.sampleRate),d=buf.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;audio.noise=buf;}catch(e){audio.ctx=null;}
+    const len=Math.floor(audio.ctx.sampleRate*1.6),buf=audio.ctx.createBuffer(1,len,audio.ctx.sampleRate),d=buf.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;audio.noise=buf;startAmbience();}catch(e){audio.ctx=null;}
 }
+function startAmbience(){const a=audio,c=a.ctx;try{
+  const bed=(freq,type,q,vol)=>{const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=a.noise;s.loop=true;s.playbackRate.value=0.7+Math.random()*0.2;f.type=type;f.frequency.value=freq;f.Q.value=q;g.gain.value=vol;s.connect(f);f.connect(g);g.connect(a.master);s.start();return g;};
+  bed(220,'lowpass',0.7,0.05);
+  const hum=bed(700,'bandpass',0.8,0.018),lfo=c.createOscillator(),lg=c.createGain();lfo.frequency.value=0.07;lg.gain.value=0.012;lfo.connect(lg);lg.connect(hum.gain);lfo.start();
+}catch(e){}}
 function tone(f,dur,type,vol,f2){const a=audio;if(!a.ctx||a.muted||vol<=0)return;const t=a.ctx.currentTime,o=a.ctx.createOscillator(),g=a.ctx.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+dur);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(a.master);o.start(t);o.stop(t+dur+0.03);}
 function noise(dur,vol,freq,ftype,att){const a=audio;if(!a.ctx||a.muted)return;const t=a.ctx.currentTime,s=a.ctx.createBufferSource(),f=a.ctx.createBiquadFilter(),g=a.ctx.createGain();s.buffer=a.noise;f.type=ftype;f.frequency.value=freq;g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(vol,t+att);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);s.connect(f);f.connect(g);g.connect(a.master);s.start(t);s.stop(t+dur+0.05);}
 const sfx={
