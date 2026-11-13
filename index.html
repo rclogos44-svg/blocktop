@@ -2044,7 +2044,19 @@ function guestTick(dt){
   if(c&&c.open){try{c.send({t:'in',k:Object.assign({},I.keys),px:I.px+touch.x,pz:I.pz+touch.y,pr:[...I.pressed],rl:[...I.released]});}catch(e){}}
   pollPads();I.pressed.clear();I.released.clear();
   const k=1-Math.exp(-dt*18);
-  for(const q of players){if(q._tp){q.pos.x=lerp(q.pos.x,q._tp.x,k);q.pos.z=lerp(q.pos.z,q._tp.z,k);q.facing=angLerp(q.facing,q._tf,k);}q.st+=dt;if(isDribbling(q))dribbleUpdate(q,dt);else q.db=null;}
+  // client-side prediction: the guest's own player moves instantly from local input, host snapshots gently correct it
+  const L=localHumans[0];let pred=false;
+  if(L&&L._tp&&(game.phase==='live'||game.phase==='scored')&&!busy(L)&&L.y<0.02&&!L.deadBall){pred=true;
+    let ix=(held(I,'right')?1:0)-(held(I,'left')?1:0)+I.px+touch.x,iz=(held(I,'down')?1:0)-(held(I,'up')?1:0)+I.pz+touch.y;const il=hyp(ix,iz);if(il>1){ix/=il;iz/=il;}
+    const has=ball.holder===L,sprint=!!L.sprintOn;let sp=has?(sprint?L.d.sprint*(0.74+0.12*L.n('handle')):L.d.run*0.8):(sprint?L.d.sprint:L.d.run),bd=1;
+    if(has&&il>0.1){const hx=HOOP.x-L.pos.x,hz=HOOP.z-L.pos.z,hl=hyp(hx,hz)||1;bd=(ix*hx+iz*hz)/(Math.min(1,il)*hl);if(!game.needsClear){if(bd<-0.35)sp*=0.86;else if(bd<0.3)sp*=0.88;}}
+    const pv=L._pv||(L._pv={x:L.vel.x,z:L.vel.z}),kk=1-Math.exp(-dt*(8+4*L.n('speed')));pv.x=lerp(pv.x,ix*sp,kk);pv.z=lerp(pv.z,iz*sp,kk);
+    L.pos.x=clamp(L.pos.x+pv.x*dt,BOUNDS.x0,BOUNDS.x1);L.pos.z=clamp(L.pos.z+pv.z*dt,BOUNDS.z0,BOUNDS.z1);L.vel.set(pv.x,0,pv.z);
+    const ex=L._tp.x-L.pos.x,ez=L._tp.z-L.pos.z,er=hyp(ex,ez);
+    if(er>1.6){L.pos.x=L._tp.x;L.pos.z=L._tp.z;}else if(er>0.12){const kc=1-Math.exp(-dt*(il>0.1?1.5:5));L.pos.x+=ex*kc;L.pos.z+=ez*kc;}
+    if(il>0.1){const tf=has&&!game.needsClear&&bd<0.3?faceHoop(L):faceAng(ix,iz);L.facing=angLerp(L.facing,tf,1-Math.exp(-dt*12));}}
+  else if(L)L._pv=null;
+  for(const q of players){if(q._tp&&!(pred&&q===L)){q.pos.x=lerp(q.pos.x,q._tp.x,k);q.pos.z=lerp(q.pos.z,q._tp.z,k);q.facing=angLerp(q.facing,q._tf,k);}q.st+=dt;if(isDribbling(q))dribbleUpdate(q,dt);else q.db=null;}
   if(ball.mode!=='held'&&ball._t){const age=Math.min((performance.now()-ball._at)/1000,0.12);ball.pos.copy(ball._t).addScaledVector(ball._v,age);ball.pos.y=Math.max(BALL_R,ball.pos.y-0.5*G*age*age);}
 }
 
