@@ -562,7 +562,7 @@ const newId=()=>'b'+Math.random().toString(36).slice(2,9);
 function makeBuild(name,num,tpl,look,over){const T=TEMPLATES[tpl];const b=Object.assign({id:newId(),name,num,h:T.h,w:T.w,ws:T.ws,skin:look.skin,hair:look.hair,band:!!look.band,sleeve:!!look.sleeve,shoe:look.shoe,dunks:['one','two','tomahawk','windmill'],hang:'two',meter:'bar',a:{}},over||{});return autoFit(b,T.wt);}
 function sanitize(b){
   if(!b||typeof b!=='object')return null;
-  const o={id:typeof b.id==='string'?b.id:newId(),name:String(b.name||'Hooper').slice(0,12),num:clamp(parseInt(b.num,10)||0,0,99),h:clamp(+b.h||78,isVip(b)?60:H_MIN,H_MAX),w:clamp(+b.w||205,165,290),ws:clamp(+b.ws||4,0,10),
+  const o={id:typeof b.id==='string'?b.id:newId(),name:String(b.name||'Hooper').slice(0,12),num:clamp(parseInt(b.num,10)||0,0,99),h:clamp(+b.h||78,isVip(b)?60:H_MIN,H_MAX),w:clamp(+b.w||205,165,290),ws:clamp(+b.ws||4,0,isVip(b)?24:10),
     skin:SKINS.includes(b.skin)?b.skin:SKINS[1],hair:HAIRS.some(h=>h[0]===b.hair)?b.hair:'fade',band:!!b.band,sleeve:!!b.sleeve,shoe:SHOES.includes(b.shoe)?b.shoe:SHOES[0],meter:METERS.some(m=>m[0]===b.meter)?b.meter:'bar',dunks:Array.isArray(b.dunks)?b.dunks.filter(k=>DUNKS.some(d=>d[0]===k)):['one','two','tomahawk','windmill'],hang:HANGS.some(h=>h[0]===b.hang)?b.hang:'two',a:{}};if(isVip(b))o.vip=b.vip;
   for(const [k] of ATTRS)o.a[k]=b.a&&+b.a[k]||A_MIN;return clampBuild(o);
 }
@@ -1661,6 +1661,7 @@ function poseTargets(p,dt){
   }
   if(p.swatT>0&&p.state!=='block'){const r=1-p.swatT/0.3;T.sRX=lerp(-3.0,-1.7,r);T.eR=-0.1;}
   {const fl=(h,k)=>clamp(-(h+k),-1.2,1.2);if(grounded){T.aLX+=fl(T.hLX,T.kL);T.aRX+=fl(T.hRX,T.kR);}else{T.aLX+=0.3;T.aRX+=0.3;}}
+  if(p.b.ws>10&&ball.holder===p&&holdMode(p)==='two'){const r=Math.min(1,(p.d.H+0.254-p.d.shW)/2/p.d.arm);T.sLZ/=r;T.sRZ/=r;}
 }
 function animate(p,dt){
   poseTargets(p,dt);
