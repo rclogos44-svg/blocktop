@@ -1189,7 +1189,8 @@ function handlerAI(p,dt){
     p.sprinting=true;setWant(p,HOOP.x+(p.pos.x>0?0.35:-0.35),HOOP.z+0.9,p.d.sprint*(0.86+0.1*p.n('handle')),0.1);a.driveT-=dt;
     const reach=canDunk(p)?Math.max(dunkRange(p),2.3):2.3;
     if(D<reach){finish(p);return;}
-    if(a.driveT<=0||(!laneOpen(p,0.7)&&near.d<0.9)){a.mode=null;if(D<3.6&&p.n('close')>0.4&&Math.random()<0.5){startFloater(p);return;}}
+    if(a.driveT<=0||(!laneOpen(p,0.7)&&near.d<0.9)){a.mode=null;a.hold=Math.min(a.hold,0.3);if(D<3.6&&p.n('close')>0.4&&Math.random()<0.5){startFloater(p);return;}
+      if(tm&&nearestOpp(tm).d>1.6&&passLaneOpen(p,tm)&&Math.random()<0.75){startPass(p,tm);return;}}
     return;
   }
   a.t-=dt;
@@ -1198,12 +1199,14 @@ function handlerAI(p,dt){
     const est=estJumper(p),mOpen=tm?nearestOpp(tm).d:0;
     if(D<2.3){finish(p);return;}
     if(game.shotClock<2.0){D<3.4?finish(p):startShot(p);return;}
-    if(a.hold>0.6&&est>0.42&&Math.random()<0.6){startShot(p);return;}
-    if(a.hold>0.4&&laneOpen(p,1.0)&&D<9&&Math.random()<0.25+0.35*Math.max(p.n('layup'),p.n('dunk'))){a.mode='drive';a.driveT=1.8;return;}
+    if((game.shotClock<5||a.hold>2.6)&&D<9.5&&laneOpen(p,0.6)){a.mode='drive';a.driveT=1.8;return;}
+    const open=near.d>2.2,att=Math.max(p.n('layup'),p.n('dunk'));
+    if(a.hold>0.5&&est>(open?0.45:0.62)&&Math.random()<0.6){startShot(p);return;}
+    if(a.hold>0.3&&laneOpen(p,0.9)&&D<9.5&&Math.random()<0.35+0.4*att+(near.d<1.7&&!open?0.2:0)){a.mode='drive';a.driveT=1.8;return;}
     if(a.hold>0.5&&mOpen>near.d+0.9&&mOpen>1.8&&passLaneOpen(p,tm)&&Math.random()<0.45){startPass(p,tm);return;}
     if(near.d<1.4&&p.cool.cross<=0&&Math.random()<0.25+0.2*p.n('handle')){const t=['cross','cross','btb','legs','hesi','spin','stepback'][Math.floor(Math.random()*7)];startMove(p,t);if(t==='stepback')a.t=0.35;return;}
     if(tm&&a.hold>3.2&&Math.random()<0.35&&passLaneOpen(p,tm)){startPass(p,tm);return;}
-    if(a.hold>1.4&&est>0.3&&Math.random()<0.15){startShot(p);return;}
+    if(a.hold>1.8&&est>0.4&&Math.random()<0.15){startShot(p);return;}
     if(!a.probe||Math.random()<0.25){const ang=rand(-1.25,1.25),r=rand(4.5,7.6);a.probe={x:clamp(HOOP.x+Math.sin(ang)*r,-7,7),z:HOOP.z+Math.cos(ang)*r};}
   }
   if(a.probe)setWant(p,a.probe.x,a.probe.z,sp*0.75,0.3);
