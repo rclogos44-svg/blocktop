@@ -1743,7 +1743,7 @@ function updateHUD(dt){
 
 /* ================= flow ================= */
 function showHudOld(){}
-function showHud(on){meters.forEach(M=>{M.sb.style.display='none';M.sg.style.display='none';M.c.style.display='none';});$('hud').hidden=!on;$('topbtns').hidden=!on;$('hints').hidden=!on||(isTouch&&localHumans.length<2);$('touch').hidden=!on||!isTouch;}
+function showHud(on){meters.forEach(M=>{M.sb.style.display='none';M.sg.style.display='none';M.c.style.display='none';});$('hud').hidden=!on;$('topbtns').hidden=!on;$('hints').hidden=true;$('touch').hidden=!on||!isTouch;}
 function clearRoster(){for(const p of players)p.dispose();players=[];teams=[[],[]];humans=[];}
 function buildById(id){return builds.find(b=>b.id===id)||builds[0];}
 function makeRoster(mode,demo){
