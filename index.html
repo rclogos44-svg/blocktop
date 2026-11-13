@@ -938,7 +938,7 @@ function startShot(p){
   {const v=hyp(p.vel.x,p.vel.z);p.shotType=null;p.fadeV=null;
     if(p.sprinting&&v>2.5){const hx=HOOP.x-p.pos.x,hz=HOOP.z-p.pos.z,hl=hyp(hx,hz)||1,dot=(p.vel.x*hx+p.vel.z*hz)/(v*hl);
       if(dot>0.45){p.shotType='pull';p.vel.multiplyScalar(0.25);}
-      else{p.shotType='fade';const ux=hx/hl,uz=hz/hl;let dx,dz;if(dot<-0.45){dx=-ux;dz=-uz;}else{const along=(p.vel.x*ux+p.vel.z*uz);dx=p.vel.x-ux*along;dz=p.vel.z-uz*along;}const dl=hyp(dx,dz)||1;p.fadeV={x:dx/dl*1.8,z:dz/dl*1.8};}}
+      else{p.shotType='fade';const ux=hx/hl,uz=hz/hl;let dx,dz;if(dot<-0.45){dx=-ux;dz=-uz;}else{const along=(p.vel.x*ux+p.vel.z*uz);dx=p.vel.x-ux*along;dz=p.vel.z-uz*along;}const dl=hyp(dx,dz)||1,fs=dot<-0.45?2.0:3.3;p.fadeV={x:dx/dl*fs,z:dz/dl*fs};}}
     p.shotMoving=!p.shotType&&v>3.2;}
   if(!p.isHuman)p.aiU=clamp(1+gauss()*sigmaOf(p),0.5,AUTO_U-0.05);
 }
