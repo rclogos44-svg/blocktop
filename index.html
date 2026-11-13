@@ -893,7 +893,7 @@ function holdMode(p){
     case 'spin':return 'one';
     case 'layup':return p.st<p.lay.gatherT?'two':'one';
     case 'floater':return p.st<0.2?'two':'one';
-    case 'dunk':return p.st<p.dk.gatherT?'two':(p.dk.type==='two'?'two':'one');
+    case 'dunk':return p.st<p.dk.gatherT?'two':((p.dk.type==='two'||p.dk.type==='reverse'||p.dk.type==='clutch')?'two':'one');
     case 'cross':case 'btb':case 'legs':case 'inout':return 'path';
     case 'stepback':return p.deadBall?'two':'dribble';
     default:return (p.y>0.02||p.catchT>0||(p.deadBall&&ball.holder===p))?'two':'dribble';
@@ -1627,9 +1627,13 @@ function poseTargets(p,dt){
         case 'contact':T.spX=lerp(0.3,0.15,cock)+0.5*whip;T.spZ=0.25;T.chY=0.3;T.sLX=-1.35;T.eL=-1.6;T.sLZ=-0.3;T.sLY=-0.3;T.sRX=lerp(-1.4,-3.4,cock)+1.4*whip;T.eR=lerp(-1.4,-1.6,cock)+1.5*whip;T.wRX=lerp(0,0.7,cock)-1.4*whip;break;
         case 'clutch':{const cc=r<0.45?0:r<0.7?(r-0.45)/0.25:Math.max(0,1-(r-0.7)/0.1);T.sLZ=-0.2;T.sRZ=0.2;T.kL=T.kR=1.4;T.hLX=T.hRX=-0.9;
           if(whip>0){T.sLX=T.sRX=lerp(-3.0,-2.0,whip);T.eL=T.eR=lerp(-1.2,-0.05,whip);}else{T.sLX=T.sRX=lerp(-3.0,-0.7,cc);T.eL=T.eR=lerp(-1.2,-1.6,cc);}break;}
-        case 'reverse':T.sLX=T.sRX=lerp(-2.6,-3.5,cock)-0.3*whip;T.eL=T.eR=lerp(-1.5,-0.1,whip);T.sLZ=-0.2;T.sRZ=0.2;T.spX=-0.35+0.2*whip;T.hdX=-0.4;T.wLX=T.wRX=-1.0*whip;break;
+        case 'reverse':{const up=smooth(clamp(r/0.3,0,1)),dn=smooth(clamp((r-0.3)/0.22,0,1)),bk=smooth(clamp((r-0.55)/0.25,0,1));
+          let sx=lerp(-1.3,-2.9,up),e=lerp(-1.6,-1.0,up);sx=lerp(sx,-0.55,dn);e=lerp(e,-1.65,dn);sx=lerp(sx,-3.45,bk);e=lerp(e,-1.45,bk);
+          sx+=0.5*whip;e=lerp(e,-0.1,whip);T.sLX=T.sRX=sx;T.eL=T.eR=e;T.sLZ=-0.3;T.sRZ=0.3;T.wLX=T.wRX=lerp(0.4,-1.1,whip);
+          const crunch=dn*(1-bk);T.spX=0.45*crunch-0.4*bk*(1-whip)+0.15*whip;T.chX=0.2*crunch-0.2*bk;T.hdX=-0.2-0.25*bk;
+          T.hLX=-1.3*crunch+T.hLX*(1-crunch);T.kL=1.9*crunch+T.kL*(1-crunch);T.hRX=-1.1*crunch+T.hRX*(1-crunch);T.kR=1.9*crunch+T.kR*(1-crunch);T.rootX*=0.4;break;}
         case '360':T.sLX=T.sRX=lerp(-1.0,-3.0,cock)+0.8*whip;T.eL=T.eR=lerp(-1.6,-1.2,cock)+1.1*whip;T.sLZ=-0.25;T.sRZ=0.25;T.kL=T.kR=1.3;T.hLX=T.hRX=-0.9+0.4*whip;break;
-        default:T.sLX=-1.4;T.sLZ=0.5;T.eL=-0.4;T.eR=-0.1;T.wRX=-1.2*whip;T.chY=-0.3*cock+0.4*whip;
+        default:{const wm=Math.pow(r,1.5);T.sLX=-1.3;T.sLZ=0.55;T.eL=-0.5;T.eR=-0.12;T.wRX=-1.2*whip;T.chY=-0.35*Math.sin(Math.PI*wm)+0.4*whip;T.sRY=0.25*Math.sin(Math.PI*wm);}
       }
       break;}
     case 'hang':T.sLX=T.sRX=-2.85;T.eL=T.eR=-0.05;T.sLZ=-0.12;T.sRZ=0.12;T.hLX=0.3*Math.sin(p.st*8);T.hRX=-0.3*Math.sin(p.st*8);T.kL=T.kR=0.4;T.spX=0.1;if(p.hangOne){T.sLX=-0.5;T.sLZ=0.5+0.2*Math.sin(p.st*8);T.eL=-0.4;T.spZ=0.12;}break;
@@ -1655,8 +1659,8 @@ function animate(p,dt){
   poseTargets(p,dt);
   const crisp=p.state==='dunk'||p.state==='hang';const fast=['pump','sidestep','stepthru','shoot','pass','reach','dunk','cross','inout','spin','btb','legs','hesi','stepback','burst','layup','floater','block','bumped'].includes(p.state)||p.swatT>0,k=1-Math.exp(-dt*(crisp?36:fast?24:14)),P=p.pose;
   for(const key of POSE_KEYS)P[key]=lerp(P[key],TP[key],k);
-  if(p.state==='dunk'&&p.dk&&p.dk.launched&&p.dk.type==='windmill'){const r=clamp((p.st-p.dk.gatherT)/(p.dk.slamT-p.dk.gatherT),0,1);P.sRX=0.5+(-2.4-2*Math.PI-0.5)*smooth(r);P.eR=-0.15;if(r>=1)P.sRX=-2.4;}
-  else if(P.sRX<-2*Math.PI+1)P.sRX+=2*Math.PI;
+  if(p.state==='dunk'&&p.dk&&p.dk.launched&&p.dk.type==='windmill'){const r=clamp((p.st-p.dk.gatherT)/(p.dk.slamT-p.dk.gatherT),0,1);P.sRX=-1.3+5.2*Math.pow(smooth(r),1.35);P.eR=-0.12;}
+  else{if(P.sRX>Math.PI)P.sRX-=2*Math.PI;if(P.sRX<-2*Math.PI+1)P.sRX+=2*Math.PI;}
   if(p.state==='spin')p.yaw=2*Math.PI*smooth(clamp(p.st/0.6,0,1))*(p.spinDir||1);
   else if(p.state==='dunk'&&p.dk&&p.dk.launched&&(p.dk.type==='reverse'||p.dk.type==='360')){const r=clamp((p.st-p.dk.gatherT)/(p.dk.slamT-p.dk.gatherT),0,1);p.yaw=(p.dk.type==='360'?2*Math.PI*p.dk.dir:Math.PI)*smooth(r);}
   else p.yaw=0;
