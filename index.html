@@ -1010,9 +1010,9 @@ function startDunk(p){
   else{const pool=(p.b.dunks||[]).filter(k=>dunkUnlocked(p.b,k));type=pool.length?pool[Math.floor(Math.random()*pool.length)]:'one';}
   const dx=HOOP.x-p.pos.x,dz=HOOP.z-p.pos.z,D=hyp(dx,dz)||1;
   const gd=G*(1-0.5*p.n('vert')),need=HOOP.y+0.22-p.d.reach,jh=clamp(need+0.3,0.4,Math.max(p.d.jumpH,need+0.1)),vy=Math.sqrt(2*gd*jh),ta=vy/gd,gatherT=0.16;
-  const travel=Math.max(0,D-0.72-hyp(p.vel.x,p.vel.z)*0.5*gatherT),sp=Math.min(9.5,travel/(ta*0.92));
+  const travel=Math.max(0,D-0.72-hyp(p.vel.x,p.vel.z)*0.75*gatherT),sp=Math.min(9.5,travel/(ta*0.92));
   p.state='dunk';p.st=0;p.dk={g:gd,type,dir:Math.random()<0.5?-1:1,gatherT,vy,vx:dx/D*sp,vz:dz/D*sp,slamT:gatherT+ta*0.92,slammed:false,launched:false,def};
-  p.faceTarget=faceAng(dx,dz);p.wx=p.wz=0;p.vel.multiplyScalar(0.55);startFin(p,p.dk.slamT);
+  p.faceTarget=faceAng(dx,dz);p.wx=p.wz=0;p.vel.multiplyScalar(0.92);startFin(p,p.dk.slamT);
 }
 function doSlam(p){
   const dk=p.dk,b=ball;if(b.holder!==p){p.state='fall';p.st=0;return;}
@@ -1610,12 +1610,12 @@ function poseTargets(p,dt){
       break;}
     case 'floater':if(!p.launched){twoHand(-0.8,-1.5);crouch(-0.35,0.6);}else{const r=clamp((p.st-0.2)/0.35,0,1);T.sRX=lerp(-2.3,-2.65,r);T.eR=lerp(-1.0,-0.2,r);T.sLX=-1.3;T.sLZ=0.6;T.eL=-0.6;T.kL=0.55;T.kR=0.35;T.hLX=-0.35;}break;
     case 'dunk':{const k=p.dk;
-      if(!k.launched){const r=smooth(clamp(p.st/k.gatherT,0,1));twoHand(lerp(-0.7,-0.45,r),-1.7);crouch(-0.95*r,1.6*r);T.spX=0.5*r;T.chX=0.15*r;T.hdX=-0.2;break;}
+      if(!k.launched){const r=smooth(clamp(p.st/k.gatherT,0,1));twoHand(lerp(-0.7,-0.45,r),-1.7);T.hLX=-0.75*r;T.kL=0.95*r;T.hRX=0.6*r;T.kR=0.75*r;T.spX=0.45*r;T.chX=0.15*r;T.hdX=-0.2;T.rootX=0.12*r;break;}
       const r=clamp((p.st-k.gatherT)/(k.slamT-k.gatherT),0,1),cock=smooth(clamp(r/0.6,0,1)),whip=smooth(clamp((r-0.78)/0.22,0,1));
-      {const po=1-smooth(clamp(r/0.25,0,1)),tk=smooth(clamp((r-0.15)/0.4,0,1))*(1-whip);
-        T.hLX=-1.55*po+(-0.35)*tk+(-0.65)*whip;T.kL=1.65*po+1.95*tk+0.55*whip;
-        T.hRX=0.5*po+0.3*tk+0.35*whip;T.kR=0.15*po+2.05*tk+0.95*whip;
-        T.aLX=0.4*po+0.6*tk;T.aRX=0.9*po+0.7*tk+0.4*whip;}
+      {const fl=smooth(clamp(r/0.3,0,1));
+        T.hLX=lerp(-1.5,-1.15,fl)+0.55*whip;T.kL=lerp(1.5,1.25,fl)-0.5*whip;
+        T.hRX=lerp(0.45,0.85,fl)-0.15*whip;T.kR=lerp(0.2,0.55,fl)+0.45*whip;
+        T.aLX=0.35;T.aRX=0.95;T.rootX=lerp(0.18,0.32,fl)+0.12*whip;}
       T.spX=lerp(0.1,-0.3,cock)+0.85*whip;T.chX=lerp(0,-0.25,cock)+0.45*whip;T.hdX=lerp(-0.3,-0.45,cock)+0.35*whip;
       switch(k.type){
         case 'tomahawk':T.sRX=lerp(-1.4,-3.75,cock)+1.95*whip;T.eR=lerp(-1.6,-1.9,cock)+1.75*whip;T.wRX=lerp(0,0.9,cock)-1.8*whip;T.sRZ=-0.15;T.sRY=0.3*cock;
