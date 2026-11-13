@@ -1739,15 +1739,15 @@ function animate(p,dt){
     else{const T1=d.thigh,S1=d.shin,W=p._fw||(p._fw=new V3()),Q=p._fq||(p._fq=new V3()),hips=[p.hipL,p.hipR],kns=[p.kneeL,p.kneeR],ans=[p.ankL,p.ankR],home=[];
       for(let i=0;i<2;i++){ans[i].getWorldPosition(W);home.push({x:W.x,y:W.y,z:W.z});}
       if(!p.ft)p.ft=home.map(h=>({x:h.x,z:h.z,s:null}));
-      const spd=hyp(p.vel.x,p.vel.z),dur=clamp(0.19-0.02*spd,0.11,0.19),thr=0.07+0.035*spd,lead=dur*0.9;
+      const spd=hyp(p.vel.x,p.vel.z),dur=clamp(0.26-0.015*spd,0.18,0.26),thr=0.18+0.06*spd,ld=Math.min(0.36,spd*0.16),lx=spd>0.05?p.vel.x/spd*ld:0,lz=spd>0.05?p.vel.z/spd*ld:0;
       const err=i=>Math.hypot(p.ft[i].x-home[i].x,p.ft[i].z-home[i].z);
-      for(let i=0;i<2;i++){const F=p.ft[i];if(F.s){F.s.t+=dt/dur;F.s.tx=home[i].x+p.vel.x*lead*(1-F.s.t);F.s.tz=home[i].z+p.vel.z*lead*(1-F.s.t);
+      for(let i=0;i<2;i++){const F=p.ft[i];if(F.s){F.s.t+=dt/dur;F.s.tx=home[i].x+lx;F.s.tz=home[i].z+lz;
         if(F.s.t>=1){F.x=F.s.tx;F.z=F.s.tz;F.s=null;}}}
       const busyStep=p.ft[0].s||p.ft[1].s,e0=err(0),e1=err(1);
-      for(const i of (e0>=e1?[0,1]:[1,0])){const F=p.ft[i];if(F.s)continue;const e=err(i),force=e>0.42;
-        if((e>thr&&!busyStep)||force){F.s={t:0,fx:F.x,fz:F.z,tx:home[i].x+p.vel.x*lead,tz:home[i].z+p.vel.z*lead};break;}}
+      for(const i of (e0>=e1?[0,1]:[1,0])){const F=p.ft[i];if(F.s)continue;const e=err(i),force=e>0.55;
+        if((e>thr&&!busyStep)||force){F.s={t:0,fx:F.x,fz:F.z,tx:home[i].x+lx,tz:home[i].z+lz};break;}}
       for(let i=0;i<2;i++){const F=p.ft[i];let x=F.x,z=F.z,y=home[i].y;
-        if(F.s){const e=smooth(Math.min(1,F.s.t));x=lerp(F.s.fx,F.s.tx,e);z=lerp(F.s.fz,F.s.tz,e);y+=Math.sin(Math.PI*Math.min(1,F.s.t))*(0.05+0.015*spd);}
+        if(F.s){const e=smooth(Math.min(1,F.s.t));x=lerp(F.s.fx,F.s.tx,e);z=lerp(F.s.fz,F.s.tz,e);y+=Math.sin(Math.PI*Math.min(1,F.s.t))*(0.06+0.015*spd);}
         Q.set(x,y,z);p.pelvis.worldToLocal(Q);Q.sub(hips[i].position);let rr=Q.length();const mx=(T1+S1)*0.995;if(rr>mx){Q.multiplyScalar(mx/rr);rr=mx;}
         const k=Math.PI-Math.acos(clamp((T1*T1+S1*S1-rr*rr)/(2*T1*S1),-1,1)),Y0=T1+S1*Math.cos(k),hz=Math.asin(clamp(Q.x/Y0,-0.95,0.95)),h=Math.atan2(Q.z,Q.y)-Math.atan2(-S1*Math.sin(k),-Y0*Math.cos(hz));
         hips[i].rotation.x=h;hips[i].rotation.z=hz;kns[i].rotation.x=k;ans[i].rotation.x=-(h+k)*(F.s?0.6:1);}
