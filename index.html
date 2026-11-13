@@ -956,7 +956,7 @@ function startShot(p){
   if(!p.isHuman)p.aiU=clamp(1+gauss()*sigmaOf(p),0.5,AUTO_U-0.05);
 }
 function releaseJumper(p){
-  const u=p.st/METER_T,auto=u>=AUTO_U,c=contestFor(p),w=greenWindow(p,c),d=u-1,green=!auto&&!behindBoard(p)&&Math.abs(d)<=w;
+  const u=(p.relOv!=null?p.relOv:p.st)/METER_T;p.relOv=null;const auto=u>=AUTO_U,c=contestFor(p),w=greenWindow(p,c),d=u-1,green=!auto&&!behindBoard(p)&&Math.abs(d)<=w;
   p.shotReleased=true;p.state='follow';p.st=0;
   launchShot(p,green,'jumper',{early:auto||d<0,sev:auto?1.2:Math.max(0,Math.abs(d)-w)});
   if(p.isHuman){const M=meterFor(p)||{};netEv('_meter',[players.indexOf(p),meterFill(u),green?1:0,w,c]);M.fill=meterFill(u);M.res=green?1:0;M.t=0.8;M.w=w;M.cv=c;
@@ -1002,7 +1002,7 @@ function finKind(p){return p.state==='dunk'?'dunk':p.state==='floater'?'floater'
 function startFin(p,T){p.fin={T,rel:null,done:false,ai:p.isHuman?null:1+gauss()*sigmaOf(p)*2.2};}
 const finReady=p=>!p.fin||!p.isHuman||p.fin.rel!=null||p.st/p.fin.T>=1.5;
 function finContest(p,kind){let c=kind==='dunk'?dunkContest(p):Math.max(contestFor(p)*0.6,dunkContest(p));if(kind==='euro')c*=0.55;if(kind==='floater')c*=0.6;return c;}
-function lockFin(p){const F=p.fin,kind=finKind(p);F.rel=p.st;F.c=finContest(p,kind);F.w=finWindow(p,F.c,kind);F.locked=true;finFeedback(p,F.rel/F.T,F.w,F.c);}
+function lockFin(p){const F=p.fin,kind=finKind(p);F.rel=p.relOv!=null?p.relOv:p.st;p.relOv=null;F.c=finContest(p,kind);F.w=finWindow(p,F.c,kind);F.locked=true;finFeedback(p,F.rel/F.T,F.w,F.c);}
 function finFeedback(p,u,w,c){const green=Math.abs(u-1)<=w;
   if(p.isHuman){const M=meterFor(p)||{};netEv('_meter',[players.indexOf(p),meterFill(u),green?1:0,w,c]);M.fill=meterFill(u);M.res=green?1:0;M.t=0.8;M.w=w;M.cv=c;
     shotCard(p,green?'<b class="g">GREEN</b>':'<b class="m">MISS</b>',coverHTML(c));if(green){p.stats.greens++;sfx.green();}else sfx.miss();}
@@ -1351,8 +1351,8 @@ function humanControl(p,dt){
       }
     }else if(canAct(p)&&p.grounded){const nearShot=sh&&sh.team!==p.team&&dist(sh,p)<3;startJump(p,nearShot||game.poss!==p.team?'block':'jump');}
   }
-  if(p.fin&&!p.fin.done&&p.fin.rel==null&&(p.state==='layup'||p.state==='floater'||p.state==='dunk')&&(I.released.has('shoot')||!held(I,'shoot')))lockFin(p);
-  if((I.released.has('shoot')||!held(I,'shoot'))&&p.state==='shoot'&&!p.shotReleased){if(p.st<0.13&&!p.jumped)startPump(p);else releaseJumper(p);}
+  if(p.fin&&!p.fin.done&&p.fin.rel==null&&(p.state==='layup'||p.state==='floater'||p.state==='dunk')&&(I.released.has('shoot')||!held(I,'shoot'))){if(I.holdS!=null&&net.live){p.relOv=Math.min(I.holdS,p.st+0.25);I.holdS=null;}lockFin(p);}
+  if((I.released.has('shoot')||!held(I,'shoot'))&&p.state==='shoot'&&!p.shotReleased){if(I.holdS!=null&&net.live){p.relOv=Math.min(I.holdS,p.st+0.25);I.holdS=null;}if(p.st<0.13&&!p.jumped)startPump(p);else releaseJumper(p);}
   if(I.pressed.has('pass')&&game.mode==='mycourt'){if(!has)machinePass(p);}
   else if(I.pressed.has('pass')){
     const tm=teammateOf(p);
@@ -1922,7 +1922,7 @@ function relayConn(client,inT,outT){const h={};let open=true,last=performance.no
     if(now-last>9000){conn.open=open=false;stop();emit('close');}},33);
   const stop=()=>{clearInterval(iv);try{client.removeListener('message',onMsg);client.unsubscribe(inT);}catch(e){}};
   const conn={open:true,relay:true,on(e,f){(h[e]=h[e]||[]).push(f);},off(e,f){h[e]=(h[e]||[]).filter(x=>x!==f);},_emit:emit,
-    send(m){if(!open)return;if(m&&m.t==='in'){if(pend){pend.k=m.k;pend.px=m.px;pend.pz=m.pz;pend.pr=pend.pr.concat(m.pr||[]);pend.rl=pend.rl.concat(m.rl||[]);}else pend={t:'in',k:m.k,px:m.px,pz:m.pz,pr:(m.pr||[]).slice(),rl:(m.rl||[]).slice()};return;}pub(m);},
+    send(m){if(!open)return;if(m&&m.t==='in'){if(pend){pend.k=m.k;pend.px=m.px;pend.pz=m.pz;pend.pr=pend.pr.concat(m.pr||[]);pend.rl=pend.rl.concat(m.rl||[]);}else pend={t:'in',k:m.k,px:m.px,pz:m.pz,pr:(m.pr||[]).slice(),rl:(m.rl||[]).slice()};pend.q=m.q;if(m.hs!=null)pend.hs=m.hs;return;}pub(m);},
     close(){if(!open)return;pub({t:'bye'});conn.open=open=false;stop();}};
   return conn;}
 async function relayListen(slotId){const c=await relayClient();if(!c||!net.searching||net.listenT)return;const jt=RT+slotId+'/join';net.listenT=jt;
@@ -1952,7 +1952,7 @@ function openPeer(id){return new Promise(res=>{let done=false,pr;const fin=v=>{i
 function tryJoin(id){return new Promise(res=>{const pr=net.guestPeer;let done=false;
   let reached=false;const onErr=e=>{if(e&&e.type==='peer-unavailable')fin('none');};
   const fin=v=>{if(done)return;done=true;try{pr.off('error',onErr);}catch(e){}res(v);};
-  pr.on('error',onErr);let c;try{c=pr.connect(id,{serialization:'json',reliable:true});}catch(e){fin('none');return;}
+  pr.on('error',onErr);let c;try{c=pr.connect(id,{serialization:'json',reliable:false});}catch(e){fin('none');return;}
   c.on('open',()=>{reached=true;try{c.send({t:'join',build:buildById(settings.p1),mate:settings.bots.mate});}catch(e){}});
   c.on('data',m=>{if(done||!m)return;if(m.t==='welcome'){net.conn=c;fin('ok');onWelcome(m);}else if(m.t==='busy'){fin('busy');try{c.close();}catch(e){}}});
   c.on('error',()=>{});setTimeout(async()=>{if(done)return;if(reached){fin('none');return;}try{pr.off('error',onErr);}catch(e){}const v=await relayJoin(id);fin(v);},5000);});}
@@ -1961,7 +1961,7 @@ async function tryHost(id){const r=await openPeer(id);if(!r.ok)return r.type==='
 function onHostConn(c){c.on('data',m=>{if(!m)return;
   if(m.t==='join'){if(net.conn&&net.conn!==c){try{c.send({t:'busy'});}catch(e){}setTimeout(()=>{try{c.close();}catch(e){}},400);return;}
     net.conn=c;net.guestBuild=sanitize(m.build)||AIB.zoom;net.guestMate=AIB[m.mate]?m.mate:'tank';net.hostMate=settings.bots.mate;c.send({t:'welcome',build:buildById(settings.p1),size:net.size,mate:net.hostMate,gmate:net.guestMate});c.on('close',onNetClose);startOnline('host');}
-  else if(c===net.conn&&m.t==='in'){const I=inputs[1];I.keys=m.k||{};I.px=m.px||0;I.pz=m.pz||0;(m.pr||[]).forEach(a=>I.pressed.add(a));(m.rl||[]).forEach(a=>I.released.add(a));}
+  else if(c===net.conn&&m.t==='in'){const I=inputs[1];if((m.pr||[]).includes('shoot'))I.holdS=null;if(m.hs!=null)I.holdS=m.hs;if(m.q!=null&&m.q<=(I.lastQ||0)){(m.pr||[]).forEach(a=>I.pressed.add(a));(m.rl||[]).forEach(a=>I.released.add(a));return;}I.lastQ=m.q||0;I.keys=m.k||{};I.px=m.px||0;I.pz=m.pz||0;(m.pr||[]).forEach(a=>I.pressed.add(a));(m.rl||[]).forEach(a=>I.released.add(a));}
   else if(c===net.conn&&m.t==='bye')onNetClose();});}
 function onWelcome(m){net.hostBuild=sanitize(m.build)||AIB.deuce;net.size=m.size===2?2:1;net.hostMate=AIB[m.mate]?m.mate:'deuce';net.guestMate=AIB[m.gmate]?m.gmate:'tank';const c=net.conn;
   c.on('data',d=>{if(!d)return;if(d.t==='snap')applySnap(d);else if(d.t==='over'){game.score=d.score;humans.forEach((h,i)=>{if(d.stats[i])h.stats=d.stats[i];});endGame();}else if(d.t==='restart')startOnline('guest');else if(d.t==='bye')onNetClose();});
@@ -2004,7 +2004,7 @@ async function joinCode(){const code=($('codeIn').value||'').trim().toUpperCase(
 function onNetClose(){if(!net.live)return;netCleanup();settings.mode='online';toMenu();setNet('Your opponent left the game.');}
 function leaveToMenu(){if(net.live&&net.conn){try{net.conn.send({t:'bye'});}catch(e){}}netCleanup();toMenu();}
 function startOnline(role){
-  initAudio();net.role=role;net.live=true;net.searching=false;net.events=[];$('netCancel').hidden=true;clearInterval(net.rescan);clearInterval(net.waitTick);
+  initAudio();net.role=role;net.live=true;net.searching=false;net.events=[];$('netCancel').hidden=true;clearInterval(net.rescan);clearInterval(net.waitTick);net.sq=net.lsq=net.iq=0;net.hs=null;inputs[1].lastQ=0;inputs[1].holdS=null;
   if(role==='guest'&&net.hostPeer){try{net.hostPeer.destroy();}catch(e){}net.hostPeer=null;}
   game.mode='online';game.score=[0,0];game.paused=false;game.shake=0;game.handlerToggle=0;lastHud='';lastHint='';
   const hb=role==='host'?buildById(settings.p1):net.hostBuild,gb=role==='host'?net.guestBuild:buildById(settings.p1);
@@ -2021,10 +2021,11 @@ function hostTick(dt){
   const c=net.conn;if(!c||!c.open)return;net.snapT+=dt;if(net.snapT<1/30)return;net.snapT=0;
   const P=players.map(q=>[+q.pos.x.toFixed(3),+q.pos.z.toFixed(3),+q.y.toFixed(3),+q.facing.toFixed(3),+q.vel.x.toFixed(2),+q.vel.z.toFixed(2),q.state,+q.st.toFixed(3),q.handSide,+q.dribP.toFixed(2),q.crossFrom,q.stance?1:0,q.armsUp?1:0,q.mvBurst?1:0,q.spinDir||1,+q.swatT.toFixed(2),q.sprintOn?1:0,+q.stam.toFixed(3),+q.landT.toFixed(2),q.shotReleased?1:0,q.hangOne?1:0,
     q.lay?[q.lay.type,q.lay.gatherT,q.lay.launched?1:0,q.lay.side]:0,q.dk?[q.dk.type,q.dk.gatherT,q.dk.slamT,q.dk.launched?1:0,q.dk.dir]:0,q.launched?1:0,q.fin?[q.fin.T,(q.fin.done||q.fin.locked)?1:0]:0,q.celebType||0]);
-  try{c.send({t:'snap',g:[game.score[0],game.score[1],+game.shotClock.toFixed(2),game.poss,game.needsClear?1:0,game.phase,+netPulse.toFixed(2),+rimShake.toFixed(2),+game.shake.toFixed(2)],
+  try{c.send({t:'snap',q:(net.sq=(net.sq||0)+1),g:[game.score[0],game.score[1],+game.shotClock.toFixed(2),game.poss,game.needsClear?1:0,game.phase,+netPulse.toFixed(2),+rimShake.toFixed(2),+game.shake.toFixed(2)],
     b:[ball.pos.x,ball.pos.y,ball.pos.z,players.indexOf(ball.holder),ball.mode==='held'?1:0,ball.vel.x,ball.vel.y,ball.vel.z],p:P,s:humans.map(h=>h.stats),e:net.events.splice(0)});}catch(e){}
 }
 function applySnap(m){
+  if(m.q!=null){if(m.q<=(net.lsq||0))return;net.lsq=m.q;}
   const g=m.g;game.score=[g[0],g[1]];game.shotClock=g[2];game.poss=g[3];game.needsClear=!!g[4];if(g[5]!=='over')game.phase=g[5];
   netPulse=Math.max(netPulse,g[6]);rimShake=Math.max(rimShake,g[7]);if(!reduceMotion)game.shake=Math.max(game.shake,g[8]);
   const b=m.b;ball._t=ball._t||new V3();ball._v=ball._v||new V3();ball._t.set(b[0],b[1],b[2]);ball._v.set(b[5],b[6],b[7]);ball._at=performance.now();
@@ -2041,7 +2042,8 @@ function applySnap(m){
 }
 function guestTick(dt){
   const I=inputs[0],c=net.conn;
-  if(c&&c.open){try{c.send({t:'in',k:Object.assign({},I.keys),px:I.px+touch.x,pz:I.pz+touch.y,pr:[...I.pressed],rl:[...I.released]});}catch(e){}}
+  {const now=performance.now();if(I.pressed.has('shoot'))net.shT0=now;if(I.released.has('shoot')&&net.shT0)net.hs=(now-net.shT0)/1000;}
+  if(c&&c.open){try{const m={t:'in',q:(net.iq=(net.iq||0)+1),k:Object.assign({},I.keys),px:I.px+touch.x,pz:I.pz+touch.y,pr:[...I.pressed],rl:[...I.released]};if(net.hs!=null){m.hs=net.hs;net.hs=null;}c.send(m);}catch(e){}}
   pollPads();I.pressed.clear();I.released.clear();
   const k=1-Math.exp(-dt*18);
   // client-side prediction: the guest's own player moves instantly from local input, host snapshots gently correct it
