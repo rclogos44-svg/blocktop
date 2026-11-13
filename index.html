@@ -215,7 +215,9 @@ input[type=range].body{background:linear-gradient(to right,var(--blue) 0,var(--b
   .pts{font-size:24px}.team{padding:5px 9px;gap:6px}.tname{font-size:11px}
   .board{min-width:0;width:100%}
   #clock{font-size:20px}
-  #topbtns{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 168px)}
+  #topbtns{top:calc(env(safe-area-inset-top,0px) + 70px);right:max(10px,env(safe-area-inset-right,0px))}
+  #topbtns .iconbtn{padding:6px 9px;font-size:11px}
+  .fbcard{top:calc(env(safe-area-inset-top,0px) + 112px)}
 }
 @media (prefers-reduced-motion:reduce){#banner.show,.pts.bump,.chip.pulse,.fbcard.show,.tag2.show{animation-duration:.01s}#banner.show{animation:none;opacity:1}.fbcard.show{animation:none;opacity:1}}
 </style>
