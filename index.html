@@ -432,7 +432,7 @@ const TEAM=[{jersey:0x2f6bff,trim:0xffffff,shorts:0x1c3a9e,ring:0x3f7cff,sock:0x
 const SPOTS=[{x:-6.9,z:1.1},{x:6.9,z:1.1},{x:-5.6,z:5.4},{x:5.6,z:5.4},{x:0,z:8.7},{x:-3.3,z:7.9},{x:3.3,z:7.9},{x:-3.0,z:2.1},{x:3.0,z:2.1},{x:-1.7,z:4.6},{x:1.7,z:4.6}];
 const BUSY=new Set(['shoot','follow','layup','floater','dunk','hang','fall','pass','stumble','down','reach','cross','spin','bumped','btb','legs','hesi','stepback','burst','inout','pump','sidestep','stepthru']);
 const STAM_DRAIN=0.05,STAM_REGEN=0.1;
-const MOVE_DUR={cross:0.32,btb:0.38,legs:0.4,inout:0.3};
+const MOVE_DUR={cross:0.36,btb:0.38,legs:0.4,inout:0.3};
 const reduceMotion=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ================= utils ================= */
@@ -913,6 +913,11 @@ const tA=new V3(),tB=new V3(),tC=new V3();
 function heldPos(p,out){
   const m=holdMode(p),fx=Math.sin(p.facing+p.yaw),fz=Math.cos(p.facing+p.yaw);
   if(m==='dribble'){const h=p.handSide<0?p.hR:p.hL;if(!p.db)dbInit(p);return out.set(h.x+fx*0.07,p.db.y,h.z+fz*0.07);}
+  if(m==='path'&&p.state==='cross'){const t=clamp(p.st/MOVE_DUR.cross,0,1),hf=p.crossFrom<0?p.hR:p.hL,ht=p.crossFrom<0?p.hL:p.hR;
+    if(t<0.3){p.xRel=null;return out.set(hf.x+fx*0.05,Math.max(BALL_R,hf.y-BALL_R*0.85),hf.z+fz*0.05);}
+    if(!p.xRel)p.xRel=new V3(hf.x+fx*0.05,Math.max(BALL_R,hf.y-BALL_R*0.85),hf.z+fz*0.05);
+    const u=(t-0.3)/0.7,y1=Math.max(BALL_R,ht.y-BALL_R*0.85),q=u<0.5?u/0.5:(1-u)/0.5,top=u<0.5?p.xRel.y:y1;
+    return out.set(lerp(p.xRel.x,ht.x+fx*0.05,u),top-(top-BALL_R)*q*q,lerp(p.xRel.z,ht.z+fz*0.05,u));}
   if(m==='path'){const H=p.d.H,t=smooth(clamp(p.st/MOVE_DUR[p.state],0,1)),s0=p.crossFrom;let lx=lerp(s0,-s0,t)*0.36,lz=0.32,top=0.44*H;
     if(p.state==='inout'){lx=s0*(1-0.85*Math.sin(Math.PI*t))*0.36;}
     if(p.state==='btb'){lx=lerp(s0,-s0,t)*0.38;lz=0.22-0.5*Math.sin(Math.PI*t);top=0.42*H;}
@@ -1445,7 +1450,7 @@ function updateBall(dt){
   const b=ball;b.noCatchT-=dt;
   if(b.mode==='held'&&b.holder){const p=b.holder;
     if(isDribbling(p)){dribbleUpdate(p,dt);ballMesh.rotation.x+=dt*10;}else p.db=null;
-    {const md=MOVE_DUR[p.state];if(md&&p.st>=md/2&&p.st-dt<md/2)sfx.bounce(p.isHuman?0.5:0.22);}
+    {const md=MOVE_DUR[p.state],mt=md*(p.state==='cross'?0.65:0.5);if(md&&p.st>=mt&&p.st-dt<mt)sfxRaw.bounce(p.isHuman?0.5:0.22);}
     return;}
   if(b.pass&&b.pass.to&&!b.pass.home&&b.pass.t<1.2){const q=b.pass.to,tx=q.pos.x-b.pos.x,tz=q.pos.z-b.pos.z,L=hyp(tx,tz)||1,hs=hyp(b.vel.x,b.vel.z),k=1-Math.exp(-dt*2.5);
     b.vel.x=lerp(b.vel.x,tx/L*hs,k);b.vel.z=lerp(b.vel.z,tz/L*hs,k);}
@@ -1507,7 +1512,7 @@ function poseTargets(p,dt){
     const A=0.3+0.55*run;T.hLX=s*A;T.hRX=-s*A;T.kL=0.15+run*(0.25+1.1*Math.max(0,-c))+(1-run)*0.2*Math.max(0,-c);T.kR=0.15+run*(0.25+1.1*Math.max(0,c))+(1-run)*0.2*Math.max(0,c);
     T.sLX=-s*A*0.9;T.sRX=s*A*0.9;T.eL=T.eR=-(0.4+1.0*run);T.spX=0.06+0.2*run;T.spY=-s*0.1*run;T.chY=-s*0.07*run;};
   const dribArms=(lv,sd)=>{const aX=lerp(-0.18,-0.62,lv),aE=lerp(-0.12,-1.05,lv),aW=lerp(-0.55,0.35,lv);
-    if(sd<0){T.sRX=aX;T.eR=aE;T.sRZ=-0.2;T.wRX=aW;T.sLX=-0.95;T.sLZ=0.42;T.eL=-1.45;T.wLX=0.2;}else{T.sLX=aX;T.eL=aE;T.sLZ=0.2;T.wLX=aW;T.sRX=-0.95;T.sRZ=-0.42;T.eR=-1.45;T.wRX=0.2;}};
+    if(sd<0){T.sRX=aX;T.eR=aE;T.sRZ=-0.2;T.wRX=aW;T.sLX=-0.28;T.sLZ=0.22;T.eL=-0.45;T.wLX=0;}else{T.sLX=aX;T.eL=aE;T.sLZ=0.2;T.wLX=aW;T.sRX=-0.28;T.sRZ=-0.22;T.eR=-0.45;T.wRX=0;}};
   const crouch=(h,k)=>{T.hLX+=h;T.hRX+=h;T.kL+=k;T.kR+=k;};
   const twoHand=(sx,e)=>{T.sLX=T.sRX=sx;T.eL=T.eR=e;T.sLZ=-0.28;T.sRZ=0.28;};
   switch(p.state){
@@ -1527,7 +1532,20 @@ function poseTargets(p,dt){
       else if(p.stance){const sh=Math.sin(p.phase)*0.25*run;T.hLX=T.hRX=-0.55;T.kL=T.kR=1.0;T.hLZ=0.3+sh;T.hRZ=-0.3+sh;T.spX=0.45;T.sLX=T.sRX=-0.5;T.sLZ=1.05;T.sRZ=-1.05;T.eL=T.eR=-0.6;}
       if(p.landT>0){crouch(-0.4*p.landT/0.2,0.7*p.landT/0.2);}
       break;
-    case 'inout':case 'cross':{const io=p.state==='inout',t=clamp(p.st/MOVE_DUR[p.state],0,1),e=io?0.6*Math.sin(Math.PI*t):smooth(t),sw=Math.sin(Math.PI*t),s0=p.crossFrom,s1=-s0;
+    case 'cross':{const t=clamp(p.st/MOVE_DUR.cross,0,1),s0=p.crossFrom,s1=-s0,F=s0<0?'R':'L',O=s0<0?'L':'R',sg=s0<0?-1:1;
+      loco();crouch(-0.5,0.95);T.spX=0.42;T.hdX=-0.12;T.hLZ+=0.34;T.hRZ-=0.34;
+      if(t<0.3){const w=smooth(t/0.3);
+        T.spZ=-s0*0.28*w;T.chY=s0*0.35*w;T.spY=-T.chY*0.35;T.chZ=-s0*0.12*w;
+        T['s'+F+'X']=lerp(-0.55,-0.5,w);T['s'+F+'Z']=sg*lerp(0.2,0.95,w);T['e'+F]=lerp(-0.9,-0.4,w);T['w'+F+'X']=-0.3;
+        T['s'+O+'X']=-0.35;T['s'+O+'Z']=-sg*0.25;T['e'+O]=-0.5;
+        if(s0<0){T.hRX+=0.15*w;T.kR+=0.2*w;}else{T.hLX+=0.15*w;T.kL+=0.2*w;}}
+      else{const v=smooth((t-0.3)/0.7),sw=Math.sin(Math.PI*v);
+        T.spZ=lerp(-s0*0.28,-s1*0.32,v);T.chY=lerp(s0*0.35,s1*0.3,v);T.spY=-T.chY*0.35;T.chZ=-lerp(s0,s1,v)*0.12;
+        T['s'+F+'X']=lerp(-0.5,-0.85,v);T['s'+F+'Z']=sg*lerp(0.95,-0.45,v);T['e'+F]=lerp(-0.4,-0.95,v);T['w'+F+'X']=lerp(-0.3,-0.7,v);
+        T['s'+O+'X']=lerp(-0.4,-0.55,v);T['s'+O+'Z']=-sg*lerp(0.25,0.95,Math.min(1,v*1.4))*(v>0.8?lerp(1,0.55,(v-0.8)/0.2):1);T['e'+O]=lerp(-0.5,-0.7,v);T['w'+O+'X']=lerp(0,0.3,v);
+        if(s1>0){T.hRX+=0.3*sw;T.kR+=0.25*sw;T.hLX-=0.25*v;}else{T.hLX+=0.3*sw;T.kL+=0.25*sw;T.hRX-=0.25*v;}}
+      break;}
+    case 'inout':{const io=true,t=clamp(p.st/MOVE_DUR[p.state],0,1),e=io?0.6*Math.sin(Math.PI*t):smooth(t),sw=Math.sin(Math.PI*t),s0=p.crossFrom,s1=-s0;
       loco();crouch(-0.48,0.9);T.spX=0.42;T.hdX=-0.12;
       T.spZ=-s1*0.2*sw*(io?0.6:1);T.chY=lerp(s0,s1,e)*0.22;T.spY=-T.chY*0.4;T.chZ=-lerp(s0,s1,e)*0.1;
       T.hLZ+=0.32;T.hRZ-=0.32;if(s1>0){T.hRX+=0.25*e;T.kR+=0.2*e;T.hLX-=0.2*e;}else{T.hLX+=0.25*e;T.kL+=0.2*e;T.hRX-=0.2*e;}
