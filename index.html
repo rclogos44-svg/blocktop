@@ -740,7 +740,7 @@ function tagSprite(text,color){
   x.fillStyle=color;x.font='700 30px Rubik, Arial, sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(text,128,33);
   const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),depthWrite:false,transparent:true}));s.scale.set(0.95,0.24,1);return s;
 }
-const POSE_KEYS=['sLX','sLZ','eL','sRX','sRZ','eR','hLX','hLZ','kL','hRX','hRZ','kR','spX','spY','spZ','hdX','aLX','aRX','wLX','wRX','wLZ','wRZ','chX','chY','chZ','nkX','hdY','sLY','sRY','rootX','rootZ'];
+const POSE_KEYS=['sLX','sLZ','eL','sRX','sRZ','eR','hLX','hLZ','kL','hRX','hRZ','kR','spX','spY','spZ','hdX','aLX','aRX','wLX','wRX','wLZ','wRZ','chX','chY','chZ','nkX','hdY','sLY','sRY','rootX','rootZ','plL','plR'];
 
 class Player{
   constructor(build,team,opts={}){
@@ -1193,7 +1193,7 @@ function handlerAI(p,dt){
   const a=p.ai;a.hold+=dt;if(busy(p)||!p.grounded)return;
   const D=hoopDist(p.pos.x,p.pos.z),near=nearestOpp(p),tm=teammateOf(p);
   setFace(p,faceHoop(p));
-  const sp=p.d.run*0.95;
+  const sp=p.d.run*0.82;
   if(tm&&tm.isHuman&&tm.callT>0&&a.hold>0.12){if(passLaneOpen(p,tm)||tm.callT<0.4){startPass(p,tm);tm.callT=0;return;}}
   if(game.needsClear){const ang=Math.atan2(p.pos.x-HOOP.x,Math.max(0.6,p.pos.z-HOOP.z)),r=ARC_R+1.1;setWant(p,clamp(HOOP.x+Math.sin(ang)*r,-7.6,7.6),HOOP.z+Math.cos(ang)*r,sp*1.05,0.1);return;}
   if(a.mode==='drive'){
@@ -1323,12 +1323,13 @@ function humanControl(p,dt){
   const il=hyp(ix,iz);if(il>1){ix/=il;iz/=il;}
   if(I.pressed.has('sprint')){p.sprintOn=!p.sprintOn;p.idleT=0;}
   const has=ball.holder===p,sprint=!!p.sprintOn;p.sprinting=sprint&&il>0.1;
-  const sp=has?(sprint?p.d.sprint*(0.84+0.12*p.n('handle')):p.d.run*0.95):(sprint?p.d.sprint:p.d.run);
+  let sp=has?(sprint?p.d.sprint*(0.74+0.12*p.n('handle')):p.d.run*0.8):(sprint?p.d.sprint:p.d.run);
+  let backDot=1;if(has&&il>0.1){const hx=HOOP.x-p.pos.x,hz=HOOP.z-p.pos.z,hl=hyp(hx,hz)||1;backDot=(ix*hx+iz*hz)/(il*hl);if(!game.needsClear){if(backDot<-0.35)sp*=0.62;else if(backDot<0.3)sp*=0.82;}}
   const control=game.phase==='live'||game.phase==='scored';
   p.wx=control?ix*sp:0;p.wz=control?iz*sp:0;
   p.stance=game.poss!==p.team&&!has&&!p.sprinting;
   const sh=ball.holder;p.armsUp=!!(sh&&sh.team!==p.team&&dist(sh,p)<2.2&&['shoot','layup','floater','dunk'].includes(sh.state));
-  if(il>0.1&&control){if(p.stance&&sh&&sh.team!==p.team&&dist(sh,p)<3)setFace(p,faceAng(sh.pos.x-p.pos.x,sh.pos.z-p.pos.z));else setFace(p,faceAng(ix,iz));}
+  if(il>0.1&&control){if(p.stance&&sh&&sh.team!==p.team&&dist(sh,p)<3)setFace(p,faceAng(sh.pos.x-p.pos.x,sh.pos.z-p.pos.z));else if(has&&!game.needsClear&&backDot<0.3)setFace(p,faceHoop(p));else setFace(p,faceAng(ix,iz));}
   else if(has)setFace(p,faceHoop(p));else if(sh&&sh!==p)setFace(p,faceAng(sh.pos.x-p.pos.x,sh.pos.z-p.pos.z));
   if(game.phase!=='live')return;
   if(control&&!has&&ball.mode==='air'&&!ball.pass&&!(ball.shot&&ball.shot.scored)&&!busy(p)){
@@ -1553,7 +1554,7 @@ function poseTargets(p,dt){
   const T=TP;for(const k of POSE_KEYS)T[k]=0;
   T.sLZ=0.08;T.sRZ=-0.08;T.eL=T.eR=-0.15;T.kL=T.kR=0.08;
   const spd=hyp(p.vel.x,p.vel.z),run=Math.min(1,spd/6.5),grounded=p.y<=0.001,has=ball.holder===p&&ball.mode==='held';
-  if(grounded)p.phase+=dt*(4+spd*1.7);
+  if(grounded){const bk=has&&spd>0.3&&(p.vel.x*Math.sin(p.facing)+p.vel.z*Math.cos(p.facing))<-0.35*spd;p.phase+=dt*(4+spd*1.7)*(bk?-1.25:1);}
   const s=Math.sin(p.phase),c=Math.cos(p.phase);
   const loco=()=>{if(spd<0.3){T.hLX=T.hRX=-0.06;T.kL=T.kR=0.14;T.spX=0.04+0.015*Math.sin(clockT*2+p.num);return;}
     const A=0.3+0.55*run;T.hLX=s*A;T.hRX=-s*A;T.kL=0.15+run*(0.25+1.1*Math.max(0,-c))+(1-run)*0.2*Math.max(0,-c);T.kR=0.15+run*(0.25+1.1*Math.max(0,c))+(1-run)*0.2*Math.max(0,c);
@@ -1562,6 +1563,15 @@ function poseTargets(p,dt){
     if(sd<0){T.sRX=aX;T.eR=aE;T.sRZ=-0.2;T.wRX=aW;T.sLX=-0.28;T.sLZ=0.22;T.eL=-0.45;T.wLX=0;}else{T.sLX=aX;T.eL=aE;T.sLZ=0.2;T.wLX=aW;T.sRX=-0.28;T.sRZ=-0.22;T.eR=-0.45;T.wRX=0;}};
   const crouch=(h,k)=>{T.hLX+=h;T.hRX+=h;T.kL+=k;T.kR+=k;};
   const twoHand=(sx,e)=>{T.sLX=T.sRX=sx;T.eL=T.eR=e;T.sLZ=-0.28;T.sRZ=0.28;};
+  // athletic ball-handling base: dep = how low, bw = foot width, sh = weight shift (+ = onto left foot)
+  const stance=(dep,bw,sh)=>{sh=sh||0;T.hLX=-0.62*dep;T.hRX=-0.62*dep;T.kL=1.05*dep+0.22*sh;T.kR=1.05*dep-0.22*sh;
+    T.hLZ=bw+0.06-0.13*sh;T.hRZ=-bw-0.06-0.13*sh;T.spX=0.3+0.22*dep;T.chX=0.04;T.hdX=-0.18-0.14*dep;T.spZ=-0.07*sh;T.chZ=0.03*sh;T.plL=T.plR=1;};
+  const guard=(O,sg)=>{T['s'+O+'X']=-0.75;T['s'+O+'Z']=sg*0.32;T['e'+O]=-1.25;T['w'+O+'X']=0.15;};
+  const dribLoco=()=>{const f=p.facing,fw=spd>0.3?(p.vel.x*Math.sin(f)+p.vel.z*Math.cos(f))/spd:0,lt=spd>0.3?(p.vel.x*Math.cos(f)-p.vel.z*Math.sin(f))/spd:0,mv=Math.min(1,spd/3.5);
+    stance(0.92,0.19,0);if(spd<0.3)return;
+    if(fw>0.55){loco();crouch(-0.22,0.38);T.spX+=0.14;T.hdX=-0.2;T.plL=Math.max(0,-c)>0.25?0:1;T.plR=Math.max(0,c)>0.25?0:1;T.plL*=1-mv;T.plR*=1-mv;}
+    else if(fw<-0.35){const A=0.24*mv;T.hLX+=s*A;T.hRX-=s*A;T.kL+=0.3*Math.max(0,c)*mv;T.kR+=0.3*Math.max(0,-c)*mv;T.spX+=0.06;T.plL=1-clamp(c*2,0,1)*mv;T.plR=1-clamp(-c*2,0,1)*mv;}
+    else{const sg=lt>0?-1:1,o=s*0.11*mv;T.hLZ+=o;T.hRZ+=o;T.kL+=0.18*Math.max(0,s)*mv;T.kR+=0.18*Math.max(0,-s)*mv;T.plL=1-clamp(s*2,0,1)*mv;T.plR=1-clamp(-s*2,0,1)*mv;T.spZ+=sg*0.04;}};
   switch(p.state){
     case 'idle':case 'reach':case 'bumped':case 'burst':
       if(p.state==='bumped'){T.spX=-0.35;T.sLZ=0.8;T.sRZ=-0.8;T.sLX=T.sRX=-0.4;T.hRX=0.35;T.kR=0.35;T.hLX=-0.2;T.kL=0.3;break;}
@@ -1571,54 +1581,52 @@ function poseTargets(p,dt){
       if(has&&(p.catchT>0||p.deadBall)){twoHand(-0.9,-1.5);crouch(-0.45,0.8);T.spX=0.35;}
       else if(p.boxing&&!has){T.hLZ=0.42;T.hRZ=-0.42;T.hLX=T.hRX=-0.5;T.kL=T.kR=1.0;T.spX=0.32;T.sLZ=1.25;T.sRZ=-1.25;T.sLX=T.sRX=-0.6;T.eL=T.eR=-0.9;}
       else if(has){const lv=p.db?p.db.lv:1,sd=p.handSide,cy=p.db?p.db.cyc:0;
-        crouch(-0.32-0.1*(1-run),0.62+0.15*(1-run));T.spX+=0.16;
-        if(spd<0.5){if(sd<0){T.hRX+=0.18;T.hLX-=0.22;}else{T.hLX+=0.18;T.hRX-=0.22;}T.hLZ+=0.12;T.hRZ-=0.12;}
-        T.spY+=-sd*0.1;T.chY+=sd*0.14+0.05*Math.sin(cy*Math.PI*2);T.chZ=-sd*0.09*(1-lv);T.chX=0.06*(1-lv);T.hdX=-0.12;T.hdY=sd*0.1;
+        if(p.state==='burst'){loco();crouch(-0.4,0.7);T.spX+=0.35;T.hdX=-0.3;}else dribLoco();
+        if(spd<0.3&&p.state==='idle'){const rk=Math.sin(clockT*3.6+p.num);T.hLZ+=0.05*rk;T.hRZ+=0.05*rk;T.spZ-=0.03*rk;}
+        T.spY+=-sd*0.1;T.chY+=sd*0.15+0.04*Math.sin(cy*Math.PI*2);T.chZ+=-sd*0.05*(1-lv);T.hdY=sd*0.08;
         dribArms(lv,sd);
       }else if(p.armsUp&&grounded){T.sLX=T.sRX=-2.75;T.sLZ=0.15;T.sRZ=-0.15;T.eL=T.eR=-0.1;crouch(-0.2,0.35);}
       else if(p.stance){const sh=Math.sin(p.phase)*0.25*run;T.hLX=T.hRX=-0.55;T.kL=T.kR=1.0;T.hLZ=0.3+sh;T.hRZ=-0.3+sh;T.spX=0.45;T.sLX=T.sRX=-0.5;T.sLZ=1.05;T.sRZ=-1.05;T.eL=T.eR=-0.6;}
       if(p.landT>0){crouch(-0.4*p.landT/0.2,0.7*p.landT/0.2);}
       break;
     case 'cross':{const t=clamp(p.st/MOVE_DUR.cross,0,1),s0=p.crossFrom,s1=-s0,F=s0<0?'R':'L',O=s0<0?'L':'R',sg=s0<0?-1:1;
-      loco();crouch(-0.5,0.95);T.spX=0.42;T.hdX=-0.12;T.hLZ+=0.34;T.hRZ-=0.34;
-      if(t<0.3){const w=smooth(t/0.3);
+      const E=p.mvEsc?1:0,dep=1.0+0.2*E,bw=0.22+0.1*E,A=0.55+0.4*E;
+      if(t<0.3){const w=smooth(t/0.3);stance(dep,bw,s0*A*w);T.spX+=0.1;
         T.spZ=-s0*0.28*w;T.chY=s0*0.35*w;T.spY=-T.chY*0.35;T.chZ=-s0*0.12*w;
         T['s'+F+'X']=lerp(-0.55,-0.5,w);T['s'+F+'Z']=sg*lerp(0.2,0.95,w);T['e'+F]=lerp(-0.9,-0.4,w);T['w'+F+'X']=-0.3;
         T['s'+O+'X']=-0.35;T['s'+O+'Z']=-sg*0.25;T['e'+O]=-0.5;
-        if(s0<0){T.hRX+=0.15*w;T.kR+=0.2*w;}else{T.hLX+=0.15*w;T.kL+=0.2*w;}}
-      else{const v=smooth((t-0.3)/0.7),sw=Math.sin(Math.PI*v);
+}
+      else{const v=smooth((t-0.3)/0.7),sw=Math.sin(Math.PI*v);stance(dep+0.08*sw,bw,lerp(s0,s1,v)*A);T.spX+=0.1+0.06*sw;
         T.spZ=lerp(-s0*0.28,-s1*0.32,v);T.chY=lerp(s0*0.35,s1*0.3,v);T.spY=-T.chY*0.35;T.chZ=-lerp(s0,s1,v)*0.12;
         T['s'+F+'X']=lerp(-0.5,-0.85,v);T['s'+F+'Z']=sg*lerp(0.95,-0.45,v);T['e'+F]=lerp(-0.4,-0.95,v);T['w'+F+'X']=lerp(-0.3,-0.7,v);
         T['s'+O+'X']=lerp(-0.4,-0.55,v);T['s'+O+'Z']=-sg*lerp(0.25,0.95,Math.min(1,v*1.4))*(v>0.8?lerp(1,0.55,(v-0.8)/0.2):1);T['e'+O]=lerp(-0.5,-0.7,v);T['w'+O+'X']=lerp(0,0.3,v);
-        if(s1>0){T.hRX+=0.3*sw;T.kR+=0.25*sw;T.hLX-=0.25*v;}else{T.hLX+=0.3*sw;T.kL+=0.25*sw;T.hRX-=0.25*v;}}
+}
       break;}
     case 'inout':{const io=true,t=clamp(p.st/MOVE_DUR[p.state],0,1),e=io?0.6*Math.sin(Math.PI*t):smooth(t),sw=Math.sin(Math.PI*t),s0=p.crossFrom,s1=-s0;
-      loco();crouch(-0.48,0.9);T.spX=0.42;T.hdX=-0.12;
-      T.spZ=-s1*0.2*sw*(io?0.6:1);T.chY=lerp(s0,s1,e)*0.22;T.spY=-T.chY*0.4;T.chZ=-lerp(s0,s1,e)*0.1;
-      T.hLZ+=0.32;T.hRZ-=0.32;if(s1>0){T.hRX+=0.25*e;T.kR+=0.2*e;T.hLX-=0.2*e;}else{T.hLX+=0.25*e;T.kL+=0.2*e;T.hRX-=0.2*e;}
+      {const E=p.mvEsc?1:0;stance(0.98+0.15*E,0.22+0.08*E,lerp(s0,s1,e)*(0.5+0.3*E));T.spX+=0.1;}
+      T.spZ+=-s1*0.12*sw;T.chY=lerp(s0,s1,e)*0.22;T.spY=-T.chY*0.4;T.chZ=-lerp(s0,s1,e)*0.1;
       const F=s0<0?'R':'L',O=s0<0?'L':'R',sg=s0<0?-1:1;
       T['s'+F+'X']=lerp(-0.6,-0.45,e);T['s'+F+'Z']=sg*lerp(0.2,-0.25,e);T['e'+F]=lerp(-1.0,-0.4,e);T['w'+F+'X']=-0.5;
       T['s'+O+'X']=lerp(-0.9,-0.55,e);T['s'+O+'Z']=-sg*lerp(0.45,0.2,e);T['e'+O]=lerp(-1.4,-0.9,e);T['w'+O+'X']=lerp(0.2,-0.3,e);break;}
-    case 'btb':{const t=clamp(p.st/MOVE_DUR.btb,0,1),e=smooth(t),s0=p.crossFrom,s1=-s0,sw=Math.sin(Math.PI*t);loco();crouch(-0.42,0.8);T.spX=0.35;T.hdX=-0.1;
-      T.spY=s0*0.35*sw;T.chY=s0*0.2*sw;T.chZ=-s1*0.08*sw;T.hLZ+=0.25;T.hRZ-=0.25;
+    case 'btb':{const t=clamp(p.st/MOVE_DUR.btb,0,1),e=smooth(t),s0=p.crossFrom,s1=-s0,sw=Math.sin(Math.PI*t),E=p.mvEsc?1:0;stance(0.95+0.18*E,0.22+0.08*E,lerp(s0,s1,e)*(0.5+0.35*E));T.spX+=0.05;
+      T.spY=s0*0.3*sw;T.chY=s0*0.2*sw;T.chZ+=-s1*0.06*sw;
       const F=s0<0?'R':'L',O=s0<0?'L':'R',sg=s0<0?-1:1;
       T['s'+F+'X']=lerp(-0.5,0.9,Math.min(1,t*1.5));T['s'+F+'Z']=sg*lerp(0.2,-0.5,e);T['e'+F]=lerp(-0.8,-0.5,e);T['s'+F+'Y']=sg*0.5*sw;
       T['s'+O+'X']=lerp(-0.9,0.35,Math.min(1,t*1.4))*(t<0.8?1:1-(t-0.8)/0.2);T['s'+O+'Z']=-sg*0.3;T['e'+O]=-0.6;break;}
     case 'legs':{const t=clamp(p.st/MOVE_DUR.legs,0,1),sw=Math.sin(Math.PI*t),s0=p.crossFrom;
-      T.spX=0.5;T.chX=0.1;T.hdX=-0.25;T.chY=-s0*0.15*sw;
-      if(s0<0){T.hLX=-0.85;T.kL=1.05;T.hRX=0.5;T.kR=0.8;}else{T.hRX=-0.85;T.kR=1.05;T.hLX=0.5;T.kL=0.8;}
-      T.hLZ=0.18;T.hRZ=-0.18;T.sLX=T.sRX=-0.3;T.eL=T.eR=-0.35;T.sLZ=0.22;T.sRZ=-0.22;T.wLX=T.wRX=-0.4;break;}
+      {const E=p.mvEsc?1:0;stance(1.0+0.15*E,0.2+0.06*E,0);if(s0<0){T.hLX=-1.05;T.kL=1.2;T.hRX=0.25;T.kR=0.95;}else{T.hRX=-1.05;T.kR=1.2;T.hLX=0.25;T.kL=0.95;}}
+      T.spX=0.5;T.chX=0.1;T.hdX=-0.3;T.chY=-s0*0.15*sw;T.sLX=T.sRX=-0.3;T.eL=T.eR=-0.35;T.sLZ=0.22;T.sRZ=-0.22;T.wLX=T.wRX=-0.4;break;}
     case 'hesi':{loco();const sd=p.handSide,lv=p.db?p.db.lv:1;
-      if(!p.mvBurst){const r=clamp(p.st/0.34,0,1);crouch(-0.1,0.25);T.spX=lerp(0.3,-0.04,r);T.chX=-0.08*r;T.hdX=-0.28*r;T.hdY=sd*0.15*r;T.hLX+=0.1;T.hRX-=0.15;}
-      else{const r=clamp((p.st-0.34)/0.2,0,1);crouch(-0.45,0.8);T.spX=0.55;T.chX=0.1;T.hdX=-0.1;if(sd<0){T.hLX-=0.5*r;T.kL+=0.3;}else{T.hRX-=0.5*r;T.kR+=0.3;}}
+      if(!p.mvBurst){const r=smooth(clamp(p.st/0.34,0,1));stance(lerp(0.92,0.55,r),0.2,0);T.spX=lerp(0.42,0.08,r);T.chX=-0.08*r;T.hdX=-0.32*r;T.hdY=sd*0.15*r;}
+      else{const r=clamp((p.st-0.34)/0.2,0,1);loco();crouch(-0.45,0.8);T.spX=0.55;T.chX=0.1;T.hdX=-0.25;if(sd<0){T.hLX-=0.5*r;T.kL+=0.3;}else{T.hRX-=0.5*r;T.kR+=0.3;}}
       dribArms(lv,sd);break;}
     case 'stepback':if(p.deadBall){twoHand(-0.8,-1.6);T.hLX=T.hRX=-0.35;T.kL=T.kR=0.6;T.spX=-0.05;}
-      else{const lv=p.db?p.db.lv:1;T.hLX=T.hRX=-0.4;T.kL=T.kR=0.7;T.spX=0.05;T.chX=-0.06;T.hdX=-0.15;if(p.handSide<0){T.hRX+=0.25;}else{T.hLX+=0.25;}dribArms(lv,p.handSide);}break;
+      else{const lv=p.db?p.db.lv:1,E=p.mvEsc?1:0;if(grounded){stance(1.0+0.15*E,0.24+0.08*E,0);T.spX+=0.05;}else{T.hLX=T.hRX=-0.7;T.kL=T.kR=1.0;T.hLZ=0.2;T.hRZ=-0.2;T.spX=0.25;}T.hdX=-0.3;dribArms(lv,p.handSide);}break;
     case 'pump':{const r=Math.sin(Math.PI*clamp(p.st/0.36,0,1));twoHand(lerp(-0.85,-2.3,r),lerp(-1.6,-1.2,r));crouch(-0.4*(1-r),0.7*(1-r));T.hdX=-0.25*r;T.spX=0.25-0.25*r;break;}
     case 'sidestep':twoHand(-0.85,-1.6);T.hLZ=0.35;T.hRZ=-0.35;T.kL=T.kR=0.45;T.spX=0.2;break;
     case 'stepthru':twoHand(-0.85,-1.6);T.hLX=-0.95;T.kL=0.95;T.hRX=0.5;T.kR=0.45;T.spX=0.4;break;
-    case 'spin':{const t=clamp(p.st/0.6,0,1),dr=p.spinDir||1,sw=Math.sin(Math.PI*t);loco();crouch(-0.4,0.7);T.spX=0.3;T.chY=dr*0.35*sw;T.spY=-T.chY*0.3;T.hdY=dr*0.3*sw;
-      T.sRX=-0.75;T.eR=-1.25;T.sRZ=0.1;T.wRX=0.3;T.sLX=-0.6;T.sLZ=0.75;T.eL=-0.7;T.hLZ=0.22;T.hRZ=-0.22;break;}
+    case 'spin':{const t=clamp(p.st/0.6,0,1),dr=p.spinDir||1,sw=Math.sin(Math.PI*t),E=p.mvEsc?1:0;stance(0.95+0.15*E,0.16+0.06*E,dr*0.5*Math.cos(Math.PI*t));T.spX=0.42;T.chY=dr*0.35*sw;T.spY=-T.chY*0.3;T.hdY=dr*0.3*sw;
+      T.sRX=-0.75;T.eR=-1.25;T.sRZ=0.1;T.wRX=0.3;T.sLX=-0.6;T.sLZ=0.75;T.eL=-0.7;break;}
     case 'shoot':{const g=smooth(clamp(p.st/0.2,0,1)),r=smooth(clamp((p.st-0.15)/0.22,0,1)),rel=smooth(clamp((p.st-0.36)/0.12,0,1));
       if(p.st<0.2){crouch(-0.5*g,0.95*g);T.hLZ=0.08;T.hRZ=-0.08;}else{T.hLX=T.hRX=0.02;T.kL=T.kR=0.1;T.aLX=T.aRX=0.45*r;}
       T.spX=lerp(0.18,0.03,r);T.chY=lerp(-0.18,-0.05,r);T.chX=lerp(0.06,-0.04,r);T.hdX=lerp(-0.1,-0.18,r);
@@ -1694,15 +1702,6 @@ function poseTargets(p,dt){
       T.sLX=-2.8+0.25*w;T.sRX=-2.8-0.25*w;T.sLZ=0.4;T.sRZ=-0.4;T.eL=T.eR=-0.35;T.hdX=-0.25;break;}
   }
   if(p.swatT>0&&p.state!=='block'){const r=1-p.swatT/0.3;T.sRX=lerp(-3.0,-1.7,r);T.eR=-0.1;}
-  if(p.mvEsc&&has&&grounded&&!p.deadBall&&['cross','btb','legs','inout','spin','stepback'].includes(p.state)){
-    const D=p.state==='spin'?0.6:p.state==='stepback'?0.7:MOVE_DUR[p.state],t=clamp(p.st/D,0,1),sw=Math.sin(Math.PI*t),s1=p.state==='spin'?(p.spinDir||1):p.state==='stepback'?p.handSide:-p.crossFrom,
-      sh=p.state==='inout'?0.55*sw:lerp(-0.6,1,smooth(t))*(0.55+0.45*sw);
-    T.hLZ+=0.3;T.hRZ-=0.3;crouch(-0.22,0.4);T.spX+=0.08;
-    const ld=s1>0?'L':'R',tr=s1>0?'R':'L',w=Math.max(0,sh),bw=Math.max(0,-sh);
-    T['h'+ld+'X']-=0.35*w;T['k'+ld]+=0.55*w;T['h'+tr+'Z']+=(tr==='L'?1:-1)*0.22*w;T['k'+tr]-=0.45*w;T['h'+tr+'X']+=0.2*w;
-    T['h'+tr+'X']-=0.25*bw;T['k'+tr]+=0.35*bw;T['k'+ld]-=0.3*bw;
-    T.spZ+=-s1*0.12*sh;T.chZ+=-s1*0.06*sh;}
-  if(has&&grounded&&p.state==='idle'&&!p.deadBall&&spd<0.6){const sw2=Math.sin(clockT*4.2+p.num);T.spZ+=0.05*sw2;T.hLZ+=0.05*sw2;T.hRZ+=0.05*sw2;T.kL+=0.12*Math.max(0,sw2);T.kR+=0.12*Math.max(0,-sw2);}
   {const fl=(h,k)=>clamp(-(h+k),-1.2,1.2);if(grounded){T.aLX+=fl(T.hLX,T.kL);T.aRX+=fl(T.hRX,T.kR);}else{T.aLX+=0.3;T.aRX+=0.3;}}
   if(p.b.ws>10&&ball.holder===p&&holdMode(p)==='two'){const r=Math.min(1,(p.d.H+0.254-p.d.shW)/2/p.d.arm);T.sLZ/=r;T.sRZ/=r;}
 }
@@ -1721,7 +1720,13 @@ function animate(p,dt){
   p.spine.rotation.set(P.spX,P.spY,P.spZ);p.headP.rotation.set(P.hdX,P.hdY,0);
   p.chestJ.rotation.set(P.chX,P.chY,P.chZ);p.neckJ.rotation.x=P.nkX;p.ankL.rotation.x=P.aLX;p.ankR.rotation.x=P.aRX;p.wrL.rotation.set(P.wLX,0,P.wLZ);p.wrR.rotation.set(P.wRX,0,P.wRZ);
   const ext=(h,hz,kk)=>Math.cos(hz)*(d.thigh*Math.cos(h)+d.shin*Math.cos(h+kk))+d.foot*0.92;
-  {const air=p.y>0.02||p.state==='hang',tgt=air?d.hip:Math.max(ext(P.hLX,P.hLZ,P.kL),ext(P.hRX,P.hRZ,P.kR),0.18*d.H);p.pelY=p.pelY===undefined?tgt:lerp(p.pelY,tgt,1-Math.exp(-dt*(air?14:30)));p.pelvis.position.y=p.pelY;}
+  {const air=p.y>0.02||p.state==='hang',tgt=air?d.hip:Math.max(ext(P.hLX,P.hLZ,P.kL),ext(P.hRX,P.hRZ,P.kR),0.18*d.H);p.pelY=p.pelY===undefined?tgt:lerp(p.pelY,tgt,1-Math.exp(-dt*(air?14:30)));p.pelvis.position.y=p.pelY;
+    if(!air&&(P.plL>0.02||P.plR>0.02)){const T1=d.thigh,S1=d.shin;
+      const solve=(hx,hz,kk,w,side)=>{if(w<=0.02)return;const Y=(p.pelY-d.foot*0.92)/Math.max(0.3,Math.cos(hz)),z0=-T1*Math.sin(hx)-S1*Math.sin(hx+kk);
+        let rr=Math.hypot(Y,z0);rr=Math.min(rr,T1+S1-1e-4);const ck=clamp((T1*T1+S1*S1-rr*rr)/(2*T1*S1),-1,1),kN=Math.PI-Math.acos(ck),ca=clamp((T1*T1+rr*rr-S1*S1)/(2*T1*rr),-1,1),hN=-Math.atan2(z0,Y)-Math.acos(ca);
+        const h2=lerp(hx,hN,w),k2=lerp(kk,kN,w),an=lerp(side?P.aLX:P.aRX,-(h2+k2),w);
+        if(side){p.hipL.rotation.x=h2;p.kneeL.rotation.x=k2;p.ankL.rotation.x=an;}else{p.hipR.rotation.x=h2;p.kneeR.rotation.x=k2;p.ankR.rotation.x=an;}};
+      solve(P.hLX,P.hLZ,P.kL,P.plL,true);solve(P.hRX,P.hRZ,P.kR,P.plR,false);}}
   p.g.position.set(p.pos.x,p.y,p.pos.z);p.g.rotation.set(P.rootX,p.facing+p.yaw,P.rootZ);
   p.g.updateMatrixWorld(true);
   p.tipL.getWorldPosition(p.hL);p.tipR.getWorldPosition(p.hR);
