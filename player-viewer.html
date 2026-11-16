@@ -61,7 +61,7 @@ function play(name){
 function setTeam(t){team=t;for(const [k,c] of Object.entries(TEAMS[t]))if(mats[k])mats[k].color.setHex(c).convertSRGBToLinear();
   document.getElementById('team').textContent='Team: '+t;}
 
-new THREE.GLTFLoader().load('assets/player.glb',g=>{
+new THREE.GLTFLoader().load(new URLSearchParams(location.search).get('src')||'assets/player.glb',g=>{
   const root=g.scene;root.traverse(o=>{if(o.isMesh){o.castShadow=true;const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>mats[m.name]=m);}});
   scene.add(root);mixer=new THREE.AnimationMixer(root);
   const order=['Idle','Run','Dribble','Crossover','Jumper','Dunk'];
