@@ -221,6 +221,14 @@ def build():
             clip = {"loop": 0, "n": len(qs), "to": round((to - lo) / FPS, 3), "rel": round((rel - lo) / FPS, 3),
                     "land": round((land - lo) / FPS, 3)}
             info = {"takeoff": to, "release": rel, "land": land, "hand_hi": round(hand[rel] - floor, 2)}
+        # Guard: the left foot must stay on the left. Crossed feet mean the
+        # retarget went wrong (this caught CMU's spread-leg rest pose).
+        crossed = 0
+        for fr in frames:
+            inv = fr["D"]["pelvis"].inverted()
+            crossed += (inv @ (fr["pos"]["LeftFoot"] - fr["pos"]["RightFoot"])).x < 0
+        if crossed > 0.05 * len(frames):
+            raise SystemExit(f"{name}: feet crossed in {crossed}/{len(frames)} frames")
         clip["q"] = [v for row in qs for v in row]
         clip["h"] = [round(h / h0, 3) for h in hs]
         out["clips"][name] = clip

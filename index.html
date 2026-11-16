@@ -1758,14 +1758,20 @@ function mocapLayer(p,dt){
   if(W.run>0.002){const h=MC.sample(C.run,ph*C.run.dur,false,A);MC.mix(pose,A,W.run);addH(Math.min(h,1.03),W.run);}
   if(W.drib>0.002){
     // legs/torso: standing dribble -> dribbling walk -> run, by speed
-    const mir=p.handSide>0;let h=MC.sample(C.dribble,clockT,mir,A);
-    const wWalk=smooth01(0.3,1.0,spd),wRun=smooth01(2.6,3.8,spd)*smooth01(0.3,0.7,fw);
-    if(wWalk>0){const h2=MC.sample(C.dribwalk,ph*C.dribwalk.dur,mir,Bq);MC.mix(A,Bq,wWalk);h=lerp(h,h2,wWalk);}
+    // standing dribble; sideways = the shuffle take (06_09 is a lateral
+    // dribble); fast and forward = the running stride; slow forward keeps the
+    // coded footwork (with foot planting), so the legs never stand still or
+    // shuffle sideways while the player walks forward.
+    const mir=p.handSide>0,lat=spd>0.05?Math.abs(p.vel.x*Math.cos(f)-p.vel.z*Math.sin(f))/spd:0,mv=smooth01(0.3,1.0,spd);
+    let h=MC.sample(C.dribble,clockT,mir,A);
+    const wWalk=mv*smooth01(0.5,0.85,lat),wRun=smooth01(2.6,3.8,spd)*smooth01(0.3,0.7,fw),legW=Math.max(1-mv,wWalk,wRun);
+    if(wWalk>0){const h2=MC.sample(C.dribwalk,ph*C.dribwalk.dur,mir,Bq);MC.mix(A,Bq,wWalk/Math.max(legW,1e-3));h=lerp(h,h2,wWalk/Math.max(legW,1e-3));}
     if(wRun>0){const h3=MC.sample(C.run,ph*C.run.dur,false,Cq);MC.mix(A,Cq,wRun);h=lerp(h,Math.min(h3,1.03),wRun);}
     const keep=MC.ARM[p.handSide<0?'R':'L'];
     // heads up (a handler looks up the floor, not at the ball), half the hunch
-    for(let j=0;j<MC.NJ;j++)if(!keep.includes(j))pose[j].slerp(A[j],W.drib*MC.DRIB_W[j]);
-    addH(h,W.drib);}
+    for(let j=0;j<MC.NJ;j++)if(!keep.includes(j))pose[j].slerp(A[j],W.drib*MC.DRIB_W[j]*(MC.LEGS.includes(j)?legW:1));
+    p.mcLegs=Math.max(W.run,W.shot,W.drib*legW);
+    addH(h,W.drib*legW);}
   if(W.shot>0.002){const c=C.jumper;let t;
     if(p.state==='shoot'){if(p.st<0.2)t=c.to-0.35*(1-p.st/0.2);else t=Math.min(c.to+(p.st-0.2)*(c.rel-c.to)/0.3,c.rel-0.03);p.mcLand=null;}
     else{if(p.mcLand==null){p.mcLand=Math.max(0.12,(p.vy+Math.sqrt(p.vy*p.vy+2*G*Math.max(0,p.y)))/G);}

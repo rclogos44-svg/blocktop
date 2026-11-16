@@ -12,6 +12,8 @@ bones the target doesn't have (fingers, toe ends) are ignored. The Hips height
 height is taken above the clip's lowest ankle and scaled by leg length, so
 rigs that rest with their hips at the origin (CMU BVH) work too.
 """
+import math
+
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
@@ -68,6 +70,32 @@ def retarget(src, target, f0, f1, action_name, in_place=True, step=1):
         s_floor = (sw @ src.data.bones[hips_src].head_local).z - s_leg if hips_src else 0.0
     t_floor = (tw @ target.data.bones["LeftFoot"].head_local).z
 
+    # Facing: rigs can rest facing different ways (CMU BVH faces +Y, Mixamo and
+    # the player face -Y). Turn the source's motion to the target's facing,
+    # otherwise a leg swinging out on one rig swings in (crossed) on the other.
+    def facing(arm, name, w):
+        l, r = arm.data.bones.get(name("LeftUpLeg")), arm.data.bones.get(name("RightUpLeg"))
+        if not (l and r):
+            return None
+        lat = (w @ l.head_local) - (w @ r.head_local)
+        fwd = lat.cross(Vector((0, 0, 1)))  # left x up = forward
+        return math.atan2(fwd.y, fwd.x)
+    fs, ft = facing(src, lambda n: smap.get(n, ""), sw), facing(target, lambda n: n, tw)
+    turn = Quaternion((0, 0, 1), ft - fs) if fs is not None and ft is not None else Quaternion()
+
+    # Rest-pose differences (CMU rests with its legs spread ~20 degrees, the
+    # player with legs straight down): per bone, the swing that turns the
+    # target's rest direction into the source's, so each bone ends up pointing
+    # the way the source bone points rather than copying a rest-relative turn.
+    align = {}
+    for pb, sn in pairs:
+        if not sn:
+            continue
+        sb, tb = src.data.bones[sn], pb.bone
+        sd = turn @ ((sw @ sb.tail_local) - (sw @ sb.head_local))
+        td = (tw @ tb.tail_local) - (tw @ tb.head_local)
+        align[pb.name] = td.rotation_difference(sd) if sd.length > 1e-6 and td.length > 1e-6 and pb.name != "Hips" else Quaternion()
+
     act = bpy.data.actions.new(action_name)
     act.use_fake_user = True
     target.animation_data_create()
@@ -82,8 +110,8 @@ def retarget(src, target, f0, f1, action_name, in_place=True, step=1):
             pb.rotation_mode = "QUATERNION"
             if sn:
                 s_pose = (sw @ src.pose.bones[sn].matrix).to_3x3().normalized().to_quaternion()
-                delta = s_pose @ s_rest[sn].inverted()
-                world = delta @ t_rest[pb.name]
+                delta = turn @ s_pose @ s_rest[sn].inverted() @ turn.inverted()
+                world = delta @ align[pb.name] @ t_rest[pb.name]
                 q_arm = tw_rot.inverted() @ world
             else:
                 par = pb.parent
@@ -100,7 +128,7 @@ def retarget(src, target, f0, f1, action_name, in_place=True, step=1):
         if hips_src:
             s_hip = (sw @ src.pose.bones[hips_src].matrix).translation
             # Height: hip height above the source's floor, scaled to the player.
-            d = (s_hip - s_hip_rest) * scale
+            d = turn @ ((s_hip - s_hip_rest) * scale)
             d.z = (s_hip.z - s_floor) * scale - (t_hip_rest.z - t_floor)
             if in_place:
                 d = Vector((0, 0, d.z))
