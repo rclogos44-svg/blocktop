@@ -33,3 +33,27 @@ The poses live in `keyed_clips()` in `build_player.py`. Angles are in degrees, i
 ## Not wired into the game yet
 
 `index.html` still draws its own procedural box player. To switch the game over, load `assets/player.glb` with `THREE.GLTFLoader`, give each player a `SkeletonUtils.clone` of it plus an `AnimationMixer`, and pick a clip from the player's state (`dribble`, `cross`, `shoot`, `dunk` and so on).
+
+## Motion capture in the game (`make_mocap.py`)
+
+```
+python blender/make_mocap.py    # writes assets/mocap.js
+```
+
+This downloads a few takes from the free [CMU Graphics Lab Motion Capture Database](http://mocap.cs.cmu.edu) (BVH conversion by Bruce Hahne; free for any use) into `blender/cmu/`, which git ignores. It retargets them onto the rig and converts them into rotations for the game's own joints (pelvis, spine, chest, neck, head, hips, knees, ankles, shoulders, elbows, wrists). `index.html` loads `assets/mocap.js` and blends it over the coded animation in `mocapLayer()`:
+
+| Clip | Take | Used for | Timing |
+|---|---|---|---|
+| `run` | 09_01 | running without the ball, and fast dribbling | one stride cycle, synced to the game's leg phase |
+| `dribwalk` | 06_09 | moving dribble, 0.3–2.6 m/s | cycle synced to the leg phase |
+| `dribble` | 06_15 | standing dribble | loops in real time |
+| `jumper` | 06_15 | normal and pull-up jump shots (not fades) | time-warped: dip ends at the game's takeoff, holds the set point until the player releases, then plays the real release and lands when the game lands |
+
+What stays on the coded animation:
+- **The dribbling arm.** The ball physics drive it, so ball and hand stay together.
+- **The handler's head and neck, and half the torso lean.** That keeps a heads-up handler instead of the mocap player looking down at the ball.
+- **Everything else:** crossovers and other moves, layups, dunks, defense, blocks and celebrations.
+
+Set `settings.mocap = false` in the console to compare against the old animation. To use different takes, change `CLIPS` in `make_mocap.py` and rerun it. Each CMU take starts in a T-pose, which is used as the standing height.
+
+The CMU data comes from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217.

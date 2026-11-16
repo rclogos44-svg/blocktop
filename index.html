@@ -417,6 +417,7 @@ input[type=range].body{background:linear-gradient(to right,var(--blue) 0,var(--b
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="assets/mocap.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1710,6 +1711,69 @@ function poseTargets(p,dt){
   {const fl=(h,k)=>clamp(-(h+k),-1.2,1.2);if(grounded){T.aLX+=fl(T.hLX,T.kL);T.aRX+=fl(T.hRX,T.kR);}else{T.aLX+=0.3;T.aRX+=0.3;}}
   if(p.b.ws>10&&ball.holder===p&&holdMode(p)==='two'){const r=Math.min(1,(p.d.H+0.254-p.d.shW)/2/p.d.arm);T.sLZ/=r;T.sRZ/=r;}
 }
+/* ================= motion capture layer =================
+   Real motion capture (CMU Graphics Lab Motion Capture Database, converted by
+   blender/make_mocap.py into assets/mocap.js) blended over the coded poses for
+   running, dribbling and the jump shot. Timing stays with the game: the run
+   and dribble cycles follow the leg phase, the jumper is time-warped to the
+   game's takeoff and release, and the dribbling arm stays with the ball code. */
+const MC=(()=>{const M=window.MOCAP;if(!M||!M.clips)return null;
+  const J=M.joints,NJ=J.length,fps=M.fps,mi=J.map(n=>{const m=/L$/.test(n)?n.slice(0,-1)+'R':/R$/.test(n)?n.slice(0,-1)+'L':n;return J.indexOf(m);});
+  for(const c of Object.values(M.clips)){const q=Float32Array.from(c.q),qm=new Float32Array(q.length);
+    for(let f=0;f<c.n;f++)for(let j=0;j<NJ;j++){const s=(f*NJ+mi[j])*4,d=(f*NJ+j)*4;qm[d]=q[s];qm[d+1]=-q[s+1];qm[d+2]=-q[s+2];qm[d+3]=q[s+3];}
+    c.q=q;c.qm=qm;c.dur=c.n/fps;}
+  const idx=n=>J.indexOf(n),DRIB_W=J.map(n=>n==='neck'||n==='head'?0:n==='spine'||n==='chest'?0.5:1),ARM={L:['shL','elL','wrL'].map(idx),R:['shR','elR','wrR'].map(idx)},LEGS=['pelvis','hipL','kneeL','ankL','hipR','kneeR','ankR'].map(idx);
+  const mk=()=>Array.from({length:NJ},()=>new THREE.Quaternion());
+  // sample a clip at time t (s) into out[]; returns the pelvis height ratio
+  const qa=new THREE.Quaternion(),qb=new THREE.Quaternion();
+  function sample(c,t,mir,out){const fr=t*fps;let f0,f1,u;
+    if(c.loop){const x=((fr%c.n)+c.n)%c.n;f0=Math.floor(x);f1=(f0+1)%c.n;u=x-f0;}else{const x=clamp(fr,0,c.n-1);f0=Math.floor(x);f1=Math.min(c.n-1,f0+1);u=x-f0;}
+    const q=mir?c.qm:c.q;for(let j=0;j<NJ;j++){const a=(f0*NJ+j)*4,b=(f1*NJ+j)*4;qa.set(q[a],q[a+1],q[a+2],q[a+3]);qb.set(q[b],q[b+1],q[b+2],q[b+3]);out[j].copy(qa).slerp(qb,u);}
+    return lerp(c.h[f0],c.h[f1],u);}
+  const tmp=[mk(),mk(),mk()];
+  // blend b into a by w (per joint, all joints)
+  const mix=(a,b,w)=>{for(let j=0;j<NJ;j++)a[j].slerp(b[j],w);};
+  return {M,J,NJ,sample,mix,tmp,ARM,LEGS,DRIB_W,mk,clips:M.clips};})();
+const smooth01=(a,b,x)=>smooth(clamp((x-a)/(b-a),0,1));
+function mocapLayer(p,dt){
+  if(!MC||settings.mocap===false){p.mcLegs=0;p.pelvis.quaternion.set(0,0,0,1);return;}
+  const joints=p.mcJ||(p.mcJ=[p.pelvis,p.spine,p.chestJ,p.neckJ,p.headP,p.hipL,p.kneeL,p.ankL,p.hipR,p.kneeR,p.ankR,p.shL,p.elL,p.wrL,p.shR,p.elR,p.wrR]);
+  const W=p.mcw||(p.mcw={run:0,drib:0,shot:0}),pose=p.mcPose||(p.mcPose=MC.mk());p.pelvis.quaternion.set(0,0,0,1);
+  const spd=hyp(p.vel.x,p.vel.z),grounded=p.y<=0.001,has=ball.holder===p&&ball.mode==='held',f=p.facing,fw=spd>0.05?(p.vel.x*Math.sin(f)+p.vel.z*Math.cos(f))/spd:1;
+  const loco=(p.state==='idle'||p.state==='burst')&&grounded&&!p.boxing&&!p.stance&&!p.armsUp&&!(p.landT>0);
+  const C=MC.clips,ph=(((p.phase-1.5*Math.PI)/(2*Math.PI))%1+1)%1;
+  // ---- targets
+  const dribT=loco&&has&&isDribbling(p)&&!(p.catchT>0||p.deadBall)?1:0;
+  const runT=loco&&!has?smooth01(0.9,1.8,spd)*smooth01(0.25,0.7,fw):0;
+  if(p.state==='shoot'&&p.st<0.05)p.mcShot=!p.shotType||p.shotType==='pull';
+  const shotT=(p.state==='shoot'||p.state==='follow')&&p.mcShot&&C.jumper?1:0;
+  const ease=(w,t,r)=>w+(t-w)*(1-Math.exp(-dt*r));
+  W.run=ease(W.run,runT,10);W.drib=ease(W.drib,dribT,12);W.shot=ease(W.shot,shotT,shotT?30:8);
+  p.mcLegs=Math.max(W.run,W.drib,W.shot);
+  if(p.mcLegs<0.002)return;
+  // ---- start from the coded pose
+  for(let j=0;j<MC.NJ;j++)pose[j].copy(joints[j].quaternion);
+  let pelH=p.pelvis.position.y/p.d.hip,hW=0,hV=0;const [A,Bq,Cq]=MC.tmp;
+  const addH=(h,w)=>{hV=hV*(1-w)+h*w;hW=hW+(1-hW)*w;};
+  if(W.run>0.002){const h=MC.sample(C.run,ph*C.run.dur,false,A);MC.mix(pose,A,W.run);addH(Math.min(h,1.03),W.run);}
+  if(W.drib>0.002){
+    // legs/torso: standing dribble -> dribbling walk -> run, by speed
+    const mir=p.handSide>0;let h=MC.sample(C.dribble,clockT,mir,A);
+    const wWalk=smooth01(0.3,1.0,spd),wRun=smooth01(2.6,3.8,spd)*smooth01(0.3,0.7,fw);
+    if(wWalk>0){const h2=MC.sample(C.dribwalk,ph*C.dribwalk.dur,mir,Bq);MC.mix(A,Bq,wWalk);h=lerp(h,h2,wWalk);}
+    if(wRun>0){const h3=MC.sample(C.run,ph*C.run.dur,false,Cq);MC.mix(A,Cq,wRun);h=lerp(h,Math.min(h3,1.03),wRun);}
+    const keep=MC.ARM[p.handSide<0?'R':'L'];
+    // heads up (a handler looks up the floor, not at the ball), half the hunch
+    for(let j=0;j<MC.NJ;j++)if(!keep.includes(j))pose[j].slerp(A[j],W.drib*MC.DRIB_W[j]);
+    addH(h,W.drib);}
+  if(W.shot>0.002){const c=C.jumper;let t;
+    if(p.state==='shoot'){if(p.st<0.2)t=c.to-0.35*(1-p.st/0.2);else t=Math.min(c.to+(p.st-0.2)*(c.rel-c.to)/0.3,c.rel-0.03);p.mcLand=null;}
+    else{if(p.mcLand==null){p.mcLand=Math.max(0.12,(p.vy+Math.sqrt(p.vy*p.vy+2*G*Math.max(0,p.y)))/G);}
+      t=p.st<p.mcLand?c.rel+(c.land-c.rel)*p.st/p.mcLand:c.land+(p.st-p.mcLand);}
+    const h=MC.sample(c,t,false,A);MC.mix(pose,A,W.shot);addH(grounded?Math.min(h,1):1,W.shot);}
+  for(let j=0;j<MC.NJ;j++)joints[j].quaternion.copy(pose[j]);
+  if(hW>0)p.pelvis.position.y=p.d.hip*lerp(pelH,hV,hW);
+}
 function animate(p,dt){
   poseTargets(p,dt);
   const crisp=(p.state==='dunk'&&!(p.dk&&p.dk.launched&&(p.dk.type==='clutch'||p.dk.type==='reverse')))||p.state==='hang';const fast=['pump','sidestep','stepthru','shoot','pass','reach','dunk','cross','inout','spin','btb','legs','hesi','stepback','burst','layup','floater','block','bumped'].includes(p.state)||p.swatT>0,k=1-Math.exp(-dt*(crisp?36:(p.mvEsc&&DRIB_MOVES.includes(p.state))?15:fast?20:14)),P=p.pose;
@@ -1732,9 +1796,10 @@ function animate(p,dt){
         const h2=lerp(hx,hN,w),k2=lerp(kk,kN,w),an=lerp(side?P.aLX:P.aRX,-(h2+k2),w);
         if(side){p.hipL.rotation.x=h2;p.kneeL.rotation.x=k2;p.ankL.rotation.x=an;}else{p.hipR.rotation.x=h2;p.kneeR.rotation.x=k2;p.ankR.rotation.x=an;}};
       solve(P.hLX,P.hLZ,P.kL,P.plL,true);solve(P.hRX,P.hRZ,P.kR,P.plR,false);}}
+  mocapLayer(p,dt);
   p.g.position.set(p.pos.x,p.y,p.pos.z);p.g.rotation.set(P.rootX,p.facing+p.yaw,P.rootZ);
   p.g.updateMatrixWorld(true);
-  {const air=p.y>0.02||p.state==='hang',on=!air&&TP.plL>0.5&&TP.plR>0.5&&P.plL>0.3&&P.plR>0.3;
+  {const air=p.y>0.02||p.state==='hang',on=!air&&TP.plL>0.5&&TP.plR>0.5&&P.plL>0.3&&P.plR>0.3&&!(p.mcLegs>0.3);
     if(!on){p.ft=null;}
     else{const T1=d.thigh,S1=d.shin,W=p._fw||(p._fw=new V3()),Q=p._fq||(p._fq=new V3()),hips=[p.hipL,p.hipR],kns=[p.kneeL,p.kneeR],ans=[p.ankL,p.ankR],home=[];
       for(let i=0;i<2;i++){ans[i].getWorldPosition(W);home.push({x:W.x,y:W.y,z:W.z});}
@@ -2236,7 +2301,7 @@ function boot(){
   $('pauseBtn').addEventListener('click',()=>togglePause());
   $('muteBtn').addEventListener('click',()=>{audio.muted=!audio.muted;if(audio.master)audio.master.gain.value=audio.muted?0:0.6;$('muteBtn').textContent=audio.muted?'Sound: off':'Sound: on';});
   requestAnimationFrame(frame);
-  window.__bt={finWindow,dunkContest,contestFor,game,ball,players:()=>players,humans:()=>humans,inputs,builds,settings,sim:n=>{for(let i=0;i<n;i++){if(game.phase==='over')break;if(!game.paused){update(1/60);for(const p of players)animate(p,1/60);if(ball.holder&&ball.mode==='held')heldPos(ball.holder,ball.pos);}}}};
+  window.__bt={finWindow,dunkContest,contestFor,game,ball,players:()=>players,humans:()=>humans,inputs,builds,settings,camera,scene,renderer,animate,sim:n=>{for(let i=0;i<n;i++){if(game.phase==='over')break;if(!game.paused){update(1/60);for(const p of players)animate(p,1/60);if(ball.holder&&ball.mode==='held')heldPos(ball.holder,ball.pos);}}}};
 }
 const fontsReady=(document.fonts&&document.fonts.ready)?Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))]):Promise.resolve();
 fontsReady.then(boot);
