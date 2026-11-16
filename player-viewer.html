@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blocktop Player Viewer</title>
+<style>
+:root{--bg:#0b1020;--panel:rgba(16,22,40,.88);--line:rgba(255,255,255,.14);--text:#eef2ff;--dim:#9aa6c8;--ball:#ff7a1a}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
+canvas{display:block}
+#ui{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;flex-direction:column;gap:10px;align-items:center;background:linear-gradient(transparent,rgba(5,8,18,.85))}
+.row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+button{font:inherit;font-weight:700;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 14px;min-height:40px;cursor:pointer}
+button[aria-pressed=true]{background:var(--ball);border-color:var(--ball);color:#1a0d02}
+#title{position:fixed;top:12px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:baseline;pointer-events:none}
+#title b{font-size:18px;letter-spacing:.04em}
+#title span{color:var(--dim);font-size:13px}
+#err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:16px;text-align:center;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="title"><b>BLOCKTOP · PLAYER</b><span id="info">loading…</span></div>
+<div id="err"></div>
+<div id="ui">
+  <div class="row" id="clips"></div>
+  <div class="row">
+    <button id="team" aria-pressed="false">Team: Blue</button>
+    <button id="speed" aria-pressed="false">Speed: 1×</button>
+    <button id="spin" aria-pressed="true">Turntable</button>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const TEAMS={Blue:{Jersey:0x2f6bff,Shorts:0x1d3ea8,Trim:0xffd34d},Red:{Jersey:0xff3b3b,Shorts:0xa81d2a,Trim:0xffffff}};
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.shadowMap.enabled=true;document.body.prepend(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b1020);scene.fog=new THREE.Fog(0x0b1020,8,22);
+const cam=new THREE.PerspectiveCamera(40,1,0.1,100);cam.position.set(2.6,1.9,4.2);
+const controls=new THREE.OrbitControls(cam,renderer.domElement);controls.target.set(0,1.15,0);controls.enableDamping=true;controls.autoRotate=true;controls.autoRotateSpeed=1.2;
+scene.add(new THREE.HemisphereLight(0xcfe0ff,0x2a1c10,0.9));
+const sun=new THREE.DirectionalLight(0xffffff,1.1);sun.position.set(3,6,4);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
+Object.assign(sun.shadow.camera,{left:-3,right:3,top:4,bottom:-1});scene.add(sun);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(4,48),new THREE.MeshLambertMaterial({color:0x7a5230}));
+floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+const ring=new THREE.Mesh(new THREE.RingGeometry(1.75,1.8,64),new THREE.MeshBasicMaterial({color:0xffffff}));ring.rotation.x=-Math.PI/2;ring.position.y=0.002;scene.add(ring);
+
+let mixer=null,actions={},current=null,mats={},speed=1,team='Blue';
+const info=document.getElementById('info');
+function resize(){renderer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+
+function play(name){
+  const next=actions[name];if(!next||next===current)return;
+  next.reset().play();if(current)current.crossFadeTo(next,0.2,false);current=next;
+  document.querySelectorAll('#clips button').forEach(b=>b.setAttribute('aria-pressed',b.textContent===name));
+  info.textContent=name+' · '+next.getClip().duration.toFixed(2)+'s';
+}
+function setTeam(t){team=t;for(const [k,c] of Object.entries(TEAMS[t]))if(mats[k])mats[k].color.setHex(c).convertSRGBToLinear();
+  document.getElementById('team').textContent='Team: '+t;}
+
+new THREE.GLTFLoader().load('assets/player.glb',g=>{
+  const root=g.scene;root.traverse(o=>{if(o.isMesh){o.castShadow=true;const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>mats[m.name]=m);}});
+  scene.add(root);mixer=new THREE.AnimationMixer(root);
+  const order=['Idle','Run','Dribble','Crossover','Jumper','Dunk'];
+  const clips=g.animations.slice().sort((a,b)=>(order.indexOf(a.name)+99)%99-(order.indexOf(b.name)+99)%99);
+  const box=document.getElementById('clips');
+  for(const c of clips){actions[c.name]=mixer.clipAction(c);const b=document.createElement('button');b.textContent=c.name;b.setAttribute('aria-pressed','false');b.onclick=()=>play(c.name);box.append(b);}
+  setTeam('Blue');play(new URLSearchParams(location.search).get('clip')||'Dribble');
+},undefined,e=>{const el=document.getElementById('err');el.style.display='flex';el.textContent='Could not load assets/player.glb ('+(e.message||e)+')';});
+
+document.getElementById('team').onclick=()=>setTeam(team==='Blue'?'Red':'Blue');
+document.getElementById('speed').onclick=e=>{speed=speed===1?0.25:1;e.target.textContent='Speed: '+(speed===1?'1×':'¼×');e.target.setAttribute('aria-pressed',speed!==1);};
+document.getElementById('spin').onclick=e=>{controls.autoRotate=!controls.autoRotate;e.target.setAttribute('aria-pressed',controls.autoRotate);};
+const clock=new THREE.Clock();
+(function loop(){requestAnimationFrame(loop);const dt=clock.getDelta();if(mixer)mixer.update(dt*speed);controls.update();renderer.render(scene,cam);})();
+// test hook: seek the current clip to a time
+window.view=(x,y,z)=>{controls.autoRotate=false;cam.position.set(x,y,z);controls.update();};window.tgt=(x,y,z)=>{controls.target.set(x,y,z);controls.update();};
+window.seek=(name,t)=>{mixer.stopAllAction();current=null;play(name);current.time=t;current.paused=true;mixer.update(0);};
+</script>
+</body>
+</html>
