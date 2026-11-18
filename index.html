@@ -1187,7 +1187,7 @@ function aiUpdate(p,dt){
   if(game.poss===p.team)offBallAI(p,dt);else defenseAI(p,dt);
 }
 function finish(p){const D=hoopDist(p.pos.x,p.pos.z);
-  if(behindBoard(p))startShot(p);
+  if(behindBoard(p)){if(p.isHuman){startShot(p);return;}p.ai.mode=null;p.ai.probe={x:(p.pos.x>=0?1:-1)*2.6,z:HOOP.z+2.8};return;}
   else if(canDunk(p)&&D<dunkRange(p)&&Math.random()<0.4+0.5*p.n('dunk'))startDunk(p);
   else if(D<2.4)startLayup(p);else if(D<3.6&&p.n('close')>0.35)startFloater(p);else startShot(p);}
 function handlerAI(p,dt){
@@ -1195,6 +1195,7 @@ function handlerAI(p,dt){
   const D=hoopDist(p.pos.x,p.pos.z),near=nearestOpp(p),tm=teammateOf(p);
   setFace(p,faceHoop(p));
   const sp=p.d.run*0.82;
+  if(behindBoard(p)||(p.pos.z<HOOP.z+0.2&&Math.abs(p.pos.x-HOOP.x)<BOARD.x1+0.9)){a.mode=null;p.sprinting=true;setWant(p,(p.pos.x>=0?1:-1)*2.6,HOOP.z+2.8,p.d.run*0.9,0.2);return;}
   if(tm&&tm.isHuman&&tm.callT>0&&a.hold>0.12){if(passLaneOpen(p,tm)||tm.callT<0.4){startPass(p,tm);tm.callT=0;return;}}
   if(game.needsClear){const ang=Math.atan2(p.pos.x-HOOP.x,Math.max(0.6,p.pos.z-HOOP.z)),r=ARC_R+1.1;setWant(p,clamp(HOOP.x+Math.sin(ang)*r,-7.6,7.6),HOOP.z+Math.cos(ang)*r,sp*1.05,0.1);return;}
   if(a.mode==='drive'){
@@ -2026,7 +2027,7 @@ function tryJoin(id){return new Promise(res=>{const pr=net.guestPeer;let done=fa
   pr.on('error',onErr);let c;try{c=pr.connect(id,{serialization:'json',reliable:false});}catch(e){fin('none');return;}
   c.on('open',()=>{reached=true;try{c.send({t:'join',build:buildById(settings.p1),mate:settings.bots.mate});}catch(e){}});
   c.on('data',m=>{if(done||!m)return;if(m.t==='welcome'){net.conn=c;fin('ok');onWelcome(m);}else if(m.t==='busy'){fin('busy');try{c.close();}catch(e){}}});
-  c.on('error',()=>{});setTimeout(async()=>{if(done)return;if(reached){fin('none');return;}try{pr.off('error',onErr);}catch(e){}const v=await relayJoin(id);fin(v);},5000);});}
+  c.on('error',()=>{});setTimeout(async()=>{if(done)return;if(reached){fin('none');return;}try{pr.off('error',onErr);}catch(e){}const v=await relayJoin(id);fin(v);},9000);});}
 async function tryHost(id){const r=await openPeer(id);if(!r.ok)return r.type==='unavailable-id'?'taken':'fail';
   net.hostPeer=r.peer;r.peer.on('connection',onHostConn);r.peer.on('disconnected',()=>{try{if(!r.peer.destroyed)r.peer.reconnect();}catch(e){}});return 'ok';}
 function onHostConn(c){c.on('data',m=>{if(!m)return;
@@ -2126,7 +2127,7 @@ function guestTick(dt){
     const pv=L._pv||(L._pv={x:L.vel.x,z:L.vel.z}),kk=1-Math.exp(-dt*(8+4*L.n('speed')));pv.x=lerp(pv.x,ix*sp,kk);pv.z=lerp(pv.z,iz*sp,kk);
     L.pos.x=clamp(L.pos.x+pv.x*dt,BOUNDS.x0,BOUNDS.x1);L.pos.z=clamp(L.pos.z+pv.z*dt,BOUNDS.z0,BOUNDS.z1);L.vel.set(pv.x,0,pv.z);
     const ex=L._tp.x-L.pos.x,ez=L._tp.z-L.pos.z,er=hyp(ex,ez);
-    if(er>1.6){L.pos.x=L._tp.x;L.pos.z=L._tp.z;}else if(er>0.12){const kc=1-Math.exp(-dt*(il>0.1?1.5:5));L.pos.x+=ex*kc;L.pos.z+=ez*kc;}
+    if(er>2.6){L.pos.x=L._tp.x;L.pos.z=L._tp.z;}else if(il<0.1){if(er>0.04){const kc=1-Math.exp(-dt*6);L.pos.x+=ex*kc;L.pos.z+=ez*kc;}}else if(er>0.8){const kc=1-Math.exp(-dt*1.2*(er-0.8));L.pos.x+=ex*kc;L.pos.z+=ez*kc;}
     if(il>0.1){const tf=has&&!game.needsClear&&bd<0.3?faceHoop(L):faceAng(ix,iz);L.facing=angLerp(L.facing,tf,1-Math.exp(-dt*12));}}
   else if(L)L._pv=null;
   for(const q of players){if(q._tp&&!(pred&&q===L)){q.pos.x=lerp(q.pos.x,q._tp.x,k);q.pos.z=lerp(q.pos.z,q._tp.z,k);q.facing=angLerp(q.facing,q._tf,k);}q.st+=dt;if(isDribbling(q))dribbleUpdate(q,dt);else q.db=null;}
