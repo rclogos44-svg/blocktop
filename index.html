@@ -431,7 +431,7 @@ input[type=text],input[type=number]{border-radius:2px}
         <div><div class="slab"><span>HEIGHT</span><output id="oH"></output></div><input type="range" class="body" id="bH" min="69" max="86" step="1"></div>
         <div><div class="slab"><span>WEIGHT</span><output id="oW"></output></div><input type="range" class="body" id="bW" min="165" max="290" step="5"></div>
         <div><div class="slab"><span>WINGSPAN</span><output id="oWs"></output></div><input type="range" class="body" id="bWs" min="0" max="10" step="1"></div>
-        <p class="rule">Taller builds unlock higher dunk, block, rebound and strength caps but lower shooting, handle and speed caps. Weight adds strength and costs speed. Wingspan adds reach for dunks, blocks, rebounds and contests.</p>
+        <p class="rule">Taller builds unlock higher dunk, block, rebound and strength caps but lower shooting, handle and speed caps. Weight adds strength and costs speed. Longer wingspan raises your dunk, block and rebound caps and your reach for blocks and boards; shorter wingspan raises your three-point cap.</p>
       </div>
       <div class="bsec">
         <h3>LOOK</h3>
@@ -607,11 +607,13 @@ const HANGS=[['none','No hang'],['one','One hand'],['two','Two hands']];
 const dunkUnlocked=(b,k)=>{const d=DUNKS.find(x=>x[0]===k);return !!d&&b.a.dunk>=d[2]&&b.a.vert>=d[3];};
 const isVip=b=>{if(!b||typeof b.vip!=='string')return false;let h=0x811c9dc5;for(const c of b.vip){h^=c.charCodeAt(0);h=Math.imul(h,0x01000193)>>>0;}return h===0x16e57d3a;};
 const budgetOf=b=>isVip(b)?1e9:BUDGET;
+const wsBonus=(b,k)=>(k==='block'||k==='reb')?Math.round(Math.max(0,b.ws||0)*1.2):0;
 function capFor(k,b){if(isVip(b))return 99;
   const t=(b.h-H_MIN)/(H_MAX-H_MIN);let c=lerp(CAPS[k][0],CAPS[k][1],t);
   const wt=(b.w-200)/90,ws=b.ws/10;
   if(k==='strength')c+=wt*8;if(k==='speed'||k==='vert')c-=wt*6;if(k==='handle')c-=wt*3;
-  if(k==='block'||k==='steal'||k==='reb')c+=ws*6;if(k==='three'||k==='handle')c-=ws*4;
+  if(k==='block'||k==='reb')c+=ws*11;if(k==='steal')c+=ws*6;if(k==='handle')c-=ws*4;
+  if(k==='dunk')c+=ws*12;if(k==='three')c+=4-ws*7;
   return Math.round(clamp(c,40,99));
 }
 function costOf(v){return Math.max(0,Math.min(v,80)-A_MIN)+Math.max(0,Math.min(v,90)-80)*2+Math.max(0,v-90)*3;}
@@ -833,14 +835,14 @@ class Player{
     this.pos=new V3(opts.x||0,0,opts.z||8);this.vel=new V3();this.y=0;this.vy=0;
     this.facing=Math.PI;this.faceTarget=Math.PI;this.wx=0;this.wz=0;this.sprinting=false;
     this.state='idle';this.st=0;this.phase=Math.random()*6;this.dribP=Math.PI/2;this.handSide=-1;this.crossFrom=-1;
-    this.cool={cross:0,steal:0,jump:0,bump:0,esc:0};this.stam=1;this.sprintOn=false;this.slow=0;this.jumpPlan=0;this.stance=false;this.armsUp=false;this.hops=0;this.landT=0;this.swatT=0;
+    this.cool={cross:0,steal:0,jump:0,bump:0,esc:0,spin:0};this.stam=1;this.sprintOn=false;this.slow=0;this.jumpPlan=0;this.stance=false;this.armsUp=false;this.hops=0;this.landT=0;this.swatT=0;
     this.ai={t:Math.random()*0.2,hold:0,spot:null,spotT:0,mode:null,driveT:0,probe:null};
     this.pose={};for(const k of POSE_KEYS)this.pose[k]=0;this.yaw=0;
     this.hL=new V3();this.hR=new V3();this.eLw=new V3();this.eRw=new V3();
     this.stats={pts:0,fgm:0,fga:0,greens:0,dunks:0,posters:0,stl:0,blk:0};
     this.computeDims();this.build(opts);
   }
-  n(k){return clamp((this.b.a[k]+this.bonus-25)/74,0,1);}
+  n(k){return clamp((Math.min(99,this.b.a[k]+wsBonus(this.b,k))+this.bonus-25)/74,0,1);}
   computeDims(){
     const b=this.b,H=b.h*0.0254,W=H+b.ws*0.0254,d=this.d={H};
     d.thigh=0.245*H;d.shin=0.225*H;d.foot=0.035*H;d.hip=d.thigh+d.shin+d.foot;
@@ -1190,7 +1192,7 @@ function moveIntent(p,I,sprint,mod){
   return null;}
 function startMove(p,type,o){
   o=o||{};const f=p.facing,fx=Math.sin(f),fz=Math.cos(f),cx=Math.cos(f),hb=p.n('handle'),esc=!!o.esc,boost=esc?1.1:1;if(esc)p.cool.esc=0.4;
-  p.holdBall=false;p.state=type;p.st=0;p.mvBurst=false;p.mvEsc=esc;p.mcClip=Math.floor(Math.random()*997);p.crossFrom=p.handSide;p.cool.cross=type==='spin'?0.5:0.3;p.comboT=0.7;if((p.combo||0)>=2&&type!=='stepback')anklesCheck(p,0.015*Math.min(p.combo,4));
+  p.holdBall=false;p.state=type;p.st=0;p.mvBurst=false;p.mvEsc=esc;p.mcClip=Math.floor(Math.random()*997);p.crossFrom=p.handSide;p.cool.cross=type==='spin'?0.5:0.3;if(type==='spin')p.cool.spin=1.0;p.comboT=0.7;if((p.combo||0)>=2&&type!=='stepback')anklesCheck(p,0.015*Math.min(p.combo,4));
   if(type==='cross'||type==='btb'||type==='inout'){const burst=(type==='cross'?3.8+1.6*hb:3.2+1.5*hb)*(esc&&type==='cross'?1.08:boost)*(type==='inout'?0.75:1);let dx,dz;if(o.dir){dx=o.dir.x;dz=o.dir.z;}else{const side=-p.crossFrom;dx=side*cx;dz=-side*fx;}
     const fw=(o.fwd||1.4)*boost;p.vel.x=dx*burst+fx*fw;p.vel.z=dz*burst+fz*fw;if(type==='cross'||type==='btb'){p.xV={x:p.vel.x,z:p.vel.z};p.vel.multiplyScalar(0.3);}else p.xV=null;anklesCheck(p,(type==='btb'?0.03:0.02)*boost);}
   else if(type==='spin'){p.spinDir=(o.side&&Math.abs(Math.cos(f))>0.2)?-Math.sign(o.side*Math.cos(f)):(o.spinDir||(Math.random()<0.5?-1:1));const sp=(4.9+2.2*hb)*boost,sl=o.side?(4.0+1.4*hb)*boost:0,fb=o.back?-0.85:(o.side?0.75:1);p.vel.x=fx*sp*fb+(o.side||0)*sl;p.vel.z=fz*sp*fb;anklesCheck(p,0.02*boost);}
@@ -1469,7 +1471,8 @@ function humanControl(p,dt){
     if(k)startStep(p,k,I.pressed.has('left')?-1:1);}
   const mod=held(I,'mod');
   if(has&&!p.deadBall&&(p.grounded||p.state==='stepback')){if(MOVE_DUR[p.state]&&p.state!=='inout'&&moveProg(p)>=0.5)p.handSide=-p.crossFrom;const mi=moveIntent(p,I,sprint,mod);
-    if(mi&&mi[1]&&mi[1].esc&&p.cool.esc>0)p.mvQ=null;
+    if(mi&&mi[0]==='spin'&&(p.cool.spin||0)>0)p.mvQ=null;
+    else if(mi&&mi[1]&&mi[1].esc&&p.cool.esc>0)p.mvQ=null;
     else if(mi){const inMv=DRIB_MOVES.includes(p.state);
       if(canAct(p)&&p.cool.cross<=0){p.combo=(p.comboT||0)>0?(p.combo||0)+1:0;startMove(p,mi[0],mi[1]);}
       else if((inMv&&moveProg(p)>=0.55)||(p.state==='stepback'&&p.sbGo&&p.grounded&&mi[0]!=='stepback')){p.combo=(p.combo||0)+1;p.cool.cross=0;startMove(p,mi[0],mi[1]);}
@@ -1628,7 +1631,7 @@ function updateBall(dt){
   if(sh&&!sh.touched&&!sh.blocked&&!sh.dunk&&sh.t<0.55){
     for(const p of opps(sh.shooter)){if(p.y<0.1||sh.tried.has(p))continue;
       const d=hyp(b.pos.x-p.pos.x,b.pos.z-p.pos.z),top=p.y+p.d.reach+0.05;
-      if(d<0.45+0.25*p.n('block')+p.b.ws*0.012&&b.pos.y<top+0.15&&b.pos.y>top-0.6){sh.tried.add(p);
+      if(d<0.45+0.25*p.n('block')+p.b.ws*0.022&&b.pos.y<top+0.15&&b.pos.y>top-0.6){sh.tried.add(p);
         if(Math.random()<clamp((p.isHuman?0.32+0.55*p.n('block'):0.12+0.4*p.n('block'))-(sh.kind==='floater'?0.12:0),0.04,0.85)){
           const ox=b.pos.x-HOOP.x,oz=b.pos.z-HOOP.z,ol=hyp(ox,oz)||1,s=rand(3,5.5);
           b.vel.set(ox/ol*s+rand(-1.2,1.2),rand(0.3,2),oz/ol*s+rand(-1.2,1.2));sh.blocked=true;sh.make=false;b.noCatch=sh.shooter;b.noCatchT=0.3;p.swatT=0.3;
@@ -1640,7 +1643,7 @@ function updateBall(dt){
   let best=null,bd=1e9;
   for(const p of players){if(p===b.noCatch&&b.noCatchT>0)continue;if(['stumble','hang','dunk','down'].includes(p.state))continue;
     if(b.pos.y>p.y+p.d.reach+0.05+0.15*p.n('reb')||b.pos.y<p.y-0.05)continue;
-    const r=b.pass?(b.pass.to===p?1.0:(p.team!==b.pass.team?0:0.6)):(0.55+0.45*p.n('reb'))*(p.boxedT>0?0.5:1);if(r<=0)continue;
+    const r=b.pass?(b.pass.to===p?1.0:(p.team!==b.pass.team?0:0.6)):(0.55+0.45*p.n('reb')+p.b.ws*0.02)*(p.boxedT>0?0.5:1);if(r<=0)continue;
     const d=hyp(b.pos.x-p.pos.x,b.pos.z-p.pos.z);if(d<r&&d<bd){bd=d;best=p;}}
   if(best){const wasPass=b.pass;onCatch(best);if(wasPass&&wasPass.team!==best.team)banner(best.team===0?'PICKED OFF!':'<span>INTERCEPTED</span>',best.team===0?'w':1);}
 }
@@ -1678,7 +1681,8 @@ function poseTargets(p,dt){
     const A=0.3+0.55*run;T.hLX=s*A;T.hRX=-s*A;T.kL=0.15+run*(0.25+1.1*Math.max(0,-c))+(1-run)*0.2*Math.max(0,-c);T.kR=0.15+run*(0.25+1.1*Math.max(0,c))+(1-run)*0.2*Math.max(0,c);
     T.sLX=-s*A*0.8;T.sRX=s*A*0.8;T.eL=T.eR=-(0.35+0.6*run);T.wLX=T.wRX=0.1;T.spX=0.06+0.2*run;T.spY=-s*0.1*run;T.chY=-s*0.07*run;};
   const dribArms=(lv,sd)=>{const aX=lerp(-0.18,-0.62,lv),aE=lerp(-0.12,-1.05,lv),aW=lerp(-0.55,0.35,lv);
-    if(sd<0){T.sRX=aX;T.eR=aE;T.sRZ=-0.2;T.wRX=aW;T.sLX=-0.1;T.sLZ=0.1;T.eL=-0.28;T.wLX=0.05;}else{T.sLX=aX;T.eL=aE;T.sLZ=0.2;T.wLX=aW;T.sRX=-0.1;T.sRZ=-0.1;T.eR=-0.28;T.wRX=0.05;}};
+    const fr=Math.min(1,spd/5),fsw=Math.sin(p.phase)*0.42*fr,fz=0.06,fe=-0.22-0.75*fr;
+    if(sd<0){T.sRX=aX;T.eR=aE;T.sRZ=-0.2;T.wRX=aW;T.sLX=-0.06-fsw;T.sLZ=fz;T.sLY=0;T.eL=fe;T.wLX=0;T.wLZ=0;}else{T.sLX=aX;T.eL=aE;T.sLZ=0.2;T.wLX=aW;T.sRX=-0.06+fsw;T.sRZ=-fz;T.sRY=0;T.eR=fe;T.wRX=0;T.wRZ=0;}};
   const crouch=(h,k)=>{T.hLX+=h;T.hRX+=h;T.kL+=k;T.kR+=k;};
   const twoHand=(sx,e)=>{T.sLX=T.sRX=sx;T.eL=T.eR=e;T.sLZ=-0.28;T.sRZ=0.28;};
   // athletic ball-handling base: dep = how low, bw = foot width, sh = weight shift (+ = onto left foot)
@@ -1692,7 +1696,7 @@ function poseTargets(p,dt){
     const u=p.stepPh/(2*Math.PI);foot(u,true);foot(u+0.5,false);};
   const dribLoco=()=>{const f=p.facing,fw=spd>0.3?(p.vel.x*Math.sin(f)+p.vel.z*Math.cos(f))/spd:0,lt=spd>0.3?(p.vel.x*Math.cos(f)-p.vel.z*Math.sin(f))/spd:0,mv=Math.min(1,spd/3.5);
     stance(0.92,0.19-0.1*Math.min(1,Math.abs(lt))*Math.min(1,spd/1.5),0);if(spd<0.3)return;
-    if(fw>0.55){loco();crouch(-0.22,0.38);T.spX+=0.14;T.hdX=-0.2;T.plL=T.plR=0;}
+    if(fw>0.55){loco();const sk=p.sprinting?Math.min(1,spd/5):0;crouch(-0.22*(1-sk),0.38*(1-sk));T.spX+=0.14-0.04*sk;T.hdX=-0.2;T.plL=T.plR=0;}
     else{shuffleGait(fw,lt);}};
   // smooth rhythmic shuffle: each foot sweeps back along the floor at body speed while planted (no sliding),
   // then lifts and swings forward low; feet never cross. Used for sideways, backward and diagonal dribbling.
@@ -1913,13 +1917,13 @@ function mocapLayer(p,dt){
     // shuffle sideways while the player walks forward.
     const mir=p.handSide>0,lat=spd>0.05?Math.abs(p.vel.x*Math.cos(f)-p.vel.z*Math.sin(f))/spd:0,mv=smooth01(0.3,1.0,spd);
     let h=MC.sample(C.dribble,clockT,mir,A);
-    const wWalk=0,wRun=smooth01(2.6,3.8,spd)*smooth01(0.3,0.7,fw),legW=Math.max(1-mv,wWalk,wRun);
+    const wWalk=0,wRun=smooth01(2.4,3.6,spd)*smooth01(0.3,0.7,fw),legW=Math.max(1-mv,wWalk,wRun);
     if(wWalk>0){const h2=MC.sample(C.dribwalk,ph*C.dribwalk.dur,mir,Bq);MC.mix(A,Bq,wWalk/Math.max(legW,1e-3));h=lerp(h,h2,wWalk/Math.max(legW,1e-3));}
     if(wRun>0){const h3=MC.sample(C.run,ph*C.run.dur,false,Cq);MC.mix(A,Cq,wRun);h=lerp(h,Math.min(h3,1.03),wRun);}
     const keep=MC.ARM.R.concat(MC.ARM.L);
     // heads up (a handler looks up the floor, not at the ball), half the hunch
-    for(let j=0;j<MC.NJ;j++)if(!keep.includes(j))pose[j].slerp(A[j],W.drib*MC.DRIB_W[j]*(MC.LEGS.includes(j)?legW*0.0:0.6));
-    p.mcLegs=Math.max(W.run,W.shot);}
+    for(let j=0;j<MC.NJ;j++)if(!keep.includes(j))pose[j].slerp(A[j],W.drib*MC.DRIB_W[j]*(MC.LEGS.includes(j)?wRun:0.6));
+    p.mcLegs=Math.max(W.run,W.shot,W.drib*wRun);if(wRun>0.01)addH(h,W.drib*wRun);}
   if(W.shot>0.002){const c=C.jumper;let t;
     if(p.state==='shoot'){if(p.st<0.2)t=c.to-0.35*(1-p.st/0.2);else t=Math.min(c.to+(p.st-0.2)*(c.rel-c.to)/0.3,c.rel-0.03);p.mcLand=null;}
     else{if(p.mcLand==null){p.mcLand=Math.max(0.12,(p.vy+Math.sqrt(p.vy*p.vy+2*G*Math.max(0,p.y)))/G);}
@@ -2457,7 +2461,7 @@ function refreshBuilder(rebuild){
   $('meterCh').querySelectorAll('canvas').forEach(c=>{c._dpr=Math.min(window.devicePixelRatio||1,2);c.width=46*c._dpr;c.height=56*c._dpr;drawMeter(c,c.dataset.m,0.93,0.08,0,46,56);});
   $('hangCh').innerHTML=HANGS.map(([k,n])=>`<button type="button" data-k="${k}" aria-pressed="${(b.hang||'two')===k}">${n}</button>`).join('');
   for(const [k] of ATTRS){const cap=capFor(k,b),e=$('at-'+k),v=b.a[k];e.value=v;e.style.setProperty('--v',((v-25)/74*100)+'%');e.style.setProperty('--c',((cap-25)/74*100)+'%');
-    $('ov-'+k).textContent=v;const nextCost=v>=cap?'':` · next +1 costs ${costOf(v+1)-costOf(v)}`;$('cap-'+k).textContent='max '+cap+nextCost;}
+    {const wb=wsBonus(b,k);$('ov-'+k).textContent=wb?Math.min(99,v+wb):v;$('ov-'+k).title=wb?`${v} + ${wb} from wingspan`:'';}const nextCost=v>=cap?'':` · next +1 costs ${costOf(v+1)-costOf(v)}`;$('cap-'+k).textContent='max '+cap+nextCost+(wsBonus(b,k)?` · +${wsBonus(b,k)} wingspan`:'');}
   for(const c of CATS)$('cat-'+c).textContent=Math.round(catAvg(b,c));
   const pe=$('bPts');pe.textContent=left;pe.classList.toggle('zero',left===0);
   $('bOvr').textContent=ovr(b);$('bArch').textContent=archetype(b);$('bPos').textContent=position(b)+' · '+fmtH(b.h);
