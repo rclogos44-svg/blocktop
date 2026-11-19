@@ -347,11 +347,6 @@ input[type=text],input[type=number]{border-radius:2px}
     </div>
     <button id="prankPayBtn" class="play" type="button">Pay $500.00</button>
   </div>
-  <div class="card tcard" id="prankJk" hidden>
-    <h1 class="big">JK<em>.</em></h1>
-    <p class="lede">It's free. Have fun.</p>
-    <button id="prankGo" class="play" type="button">Play</button>
-  </div>
 </div>
 <div id="title" class="overlay titlescr">
   <div class="card tcard">
@@ -2403,10 +2398,7 @@ function renderMenu(){
 function setupMenu(){
   {const pr=$('prank'),done=()=>{pr.hidden=true;};
     $('prankBtn').addEventListener('click',()=>{$('prankBuy').hidden=true;$('prankPay').hidden=false;});
-    const jk=()=>{$('prankPay').hidden=true;$('prankBuy').hidden=true;$('prankJk').hidden=false;};
-    $('prankPayBtn').addEventListener('click',jk);document.querySelectorAll('#prankPay .ff').forEach(e=>e.addEventListener('click',jk));
-    $('prankGo').addEventListener('click',done);
-    let typed='';addEventListener('keydown',e=>{if(pr.hidden)return;typed=(typed+(e.key||'')).slice(-4).toUpperCase();if(typed==='RECE')done();});}
+    let typed='';addEventListener('keydown',e=>{if(pr.hidden)return;typed=(typed+(e.key||'')).slice(-10).toUpperCase();if(typed==='RECEISCOOL')done();});}
   $('titlePlay').addEventListener('click',()=>{initAudio();showScreen('buildSel');});
   $('bsBack').addEventListener('click',()=>showScreen('title'));
   $('switchBtn').addEventListener('click',()=>showScreen('buildSel'));
