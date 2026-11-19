@@ -523,8 +523,9 @@ const V3=THREE.Vector3;
 
 /* ================= constants ================= */
 const G=9.8, PG=16;
-const HOOP={x:0,y:3.05,z:1.6}, RIM_R=0.2286, BALL_R=0.121;
-const BOARD={z:1.22,x0:-0.915,x1:0.915,y0:2.9,y1:3.97};
+const RIM_UP=0.23;// rim at 10'9" (3.28 m) instead of 10 ft, so player heights feel true to size
+const HOOP={x:0,y:3.05+RIM_UP,z:1.6}, RIM_R=0.2286, BALL_R=0.121;
+const BOARD={z:1.22,x0:-0.915,x1:0.915,y0:2.9+RIM_UP,y1:3.97+RIM_UP};
 const ARC_R=6.75, CORNER_X=6.6, ARC_JOIN=HOOP.z+Math.sqrt(ARC_R*ARC_R-CORNER_X*CORNER_X);
 const BOUNDS={x0:-8.3,x1:8.3,z0:-0.8,z1:15.2};
 const WIN=21, SHOT_CLOCK=14, METER_T=0.5, AUTO_U=1.75;
@@ -774,16 +775,16 @@ function netGeometry(){
 }
 function buildHoop(){
   const dark=lam({color:0x1e2533});
-  const pole=new THREE.Mesh(new THREE.BoxGeometry(0.2,3.95,0.2),dark);pole.position.set(0,1.97,-0.9);pole.castShadow=true;scene.add(pole);
+  const pole=new THREE.Mesh(new THREE.BoxGeometry(0.2,3.95+RIM_UP,0.2),dark);pole.position.set(0,1.97+RIM_UP/2,-0.9);pole.castShadow=true;scene.add(pole);
   const pad=new THREE.Mesh(new THREE.BoxGeometry(0.36,1.8,0.36),lam({color:0x2f6bff}));pad.position.set(0,0.9,-0.9);scene.add(pad);
   const base=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.12,0.9),dark);base.position.set(0,0.06,-0.9);scene.add(base);
-  for(const yy of [3.3,3.75]){const arm=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.08,2.08),dark);arm.position.set(0,yy,0.15);arm.castShadow=true;scene.add(arm);}
+  for(const yy of [3.3+RIM_UP,3.75+RIM_UP]){const arm=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.08,2.08),dark);arm.position.set(0,yy,0.15);arm.castShadow=true;scene.add(arm);}
   const board=new THREE.Mesh(new THREE.BoxGeometry(1.83,1.07,0.03),new THREE.MeshPhongMaterial({color:0xdfe8ff,transparent:true,opacity:0.3,shininess:90}));
   board.position.set(0,(BOARD.y0+BOARD.y1)/2,BOARD.z-0.015);scene.add(board);
   const white=new THREE.MeshBasicMaterial({color:0xffffff});
   const bar=(w,h,x,y)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,0.04),white);m.position.set(x,y,BOARD.z-0.01);scene.add(m);};
-  bar(1.83,0.05,0,BOARD.y1);bar(1.83,0.05,0,BOARD.y0);bar(0.05,1.07,-0.915,3.435);bar(0.05,1.07,0.915,3.435);
-  bar(0.61,0.04,0,3.36);bar(0.04,0.45,-0.305,3.155);bar(0.04,0.45,0.305,3.155);
+  bar(1.83,0.05,0,BOARD.y1);bar(1.83,0.05,0,BOARD.y0);bar(0.05,1.07,-0.915,3.435+RIM_UP);bar(0.05,1.07,0.915,3.435+RIM_UP);
+  bar(0.61,0.04,0,3.36+RIM_UP);bar(0.04,0.45,-0.305,3.155+RIM_UP);bar(0.04,0.45,0.305,3.155+RIM_UP);
   const bpad=new THREE.Mesh(new THREE.BoxGeometry(1.86,0.06,0.07),lam({color:0x2f6bff}));bpad.position.set(0,BOARD.y0-0.02,BOARD.z-0.02);scene.add(bpad);
   rimMesh=new THREE.Mesh(new THREE.TorusGeometry(RIM_R,0.012,8,40),lam({color:0xff5a1f}));
   rimMesh.rotation.x=Math.PI/2;rimMesh.position.set(HOOP.x,HOOP.y,HOOP.z);rimMesh.castShadow=true;scene.add(rimMesh);
@@ -996,7 +997,7 @@ function jumperRating(p){const D=hoopDist(p.pos.x,p.pos.z);if(D<3.2)return p.n('
 function greenWindow(p,c){const D=hoopDist(p.pos.x,p.pos.z);let w=0.016+0.046*jumperRating(p);if(D>8.3)w*=0.6;if(D>9.6)w*=0.35;w*=1-0.8*c;if(p.shotMoving)w*=0.82;if(p.state==='shoot'||p.state==='follow'){if(p.shotType==='fade')w*=0.68;else if(p.shotType==='side'||p.shotType==='sbshot')w*=0.68;else if(p.shotType==='pull')w*=0.9;}return Math.max(0.005,w);}
 function sigmaOf(p){return dOf(p).sigma*(1.15-0.3*jumperRating(p));}
 function estJumper(p){const w=greenWindow(p,contestFor(p));return erf(w/(sigmaOf(p)*1.4142));}
-const canDunk=p=>p.b.a.dunk>=40&&p.d.reach+p.d.jumpH>=HOOP.y+0.15;
+const canDunk=p=>p.b.a.dunk>=40&&p.d.reach+p.d.jumpH>=HOOP.y-RIM_UP+0.15;// the same builds can dunk as on a 10 ft rim; the dunk jump itself rises to the taller rim
 const dunkRange=p=>1.9+2.0*p.n('dunk');
 function setWant(p,tx,tz,speed,stopR){const dx=tx-p.pos.x,dz=tz-p.pos.z,d=hyp(dx,dz);if(d<stopR){p.wx=0;p.wz=0;return d;}const s=Math.min(speed,d*3.2);p.wx=dx/d*s;p.wz=dz/d*s;return d;}
 function setFace(p,a){if(!busy(p)||p.state==='reach')p.faceTarget=a;}
@@ -1224,7 +1225,7 @@ function startMove(p,type,o){
   else if(type==='hesi'){if(esc)p.st=0.2;}
   else if(type==='burst'){const sp=p.d.sprint*1.1;p.vel.x=fx*sp;p.vel.z=fz*sp;}
   if(game.mode!=='mycourt')p.stam=Math.max(0,p.stam-0.012);
-  p.lastMove=type;p.lastMoveT=0;sfx.squeak();
+  p.lastMove=type;p.lastMoveT=0;sfx.squeak();if(!p.isHuman)game.dbg.aiMoves=(game.dbg.aiMoves||0)+1;
 }
 function startCrossOld(p){
   p.state='cross';p.st=0;p.crossFrom=p.handSide;p.cool.cross=0.85;
@@ -1257,6 +1258,7 @@ function trySteal(def){
 /* ================= possession flow ================= */
 function onCatch(p){
   const b=ball,sh=b.shot;
+  if(sh&&!sh.scored&&!b.pass){const k=p.team===sh.team?'oreb':'dreb';game.dbg[k]=(game.dbg[k]||0)+1;}
   b.holder=p;b.mode='held';b.shot=null;b.pass=null;p.handSide=-1;p.catchT=0.28;p.deadBall=false;p.sbUsed=false;p.stepUsed=false;p.dribP=Math.PI/2;p.ai.hold=0;p.ai.mode=null;p.ai.probe=null;p.holdBall=!!p.isHuman;
   if(p.team!==game.poss){game.poss=p.team;game.needsClear=!beyondArc(p.pos.x,p.pos.z,0.15);game.shotClock=SHOT_CLOCK;}
   else if(sh&&sh.touched)game.shotClock=SHOT_CLOCK;
@@ -1316,6 +1318,17 @@ function finish(p){const D=hoopDist(p.pos.x,p.pos.z);
   if(behindBoard(p)){if(p.isHuman){startShot(p);return;}p.ai.mode=null;p.ai.probe={x:(p.pos.x>=0?1:-1)*2.6,z:HOOP.z+2.8};return;}
   else if(canDunk(p)&&D<dunkRange(p)&&Math.random()<0.4+0.5*p.n('dunk'))startDunk(p);
   else if(D<2.4)startLayup(p);else if(D<3.6&&p.n('close')>0.35)startFloater(p);else startShot(p);}
+function aiMove(p,near,esc){// pick a dribble move that goes away from the defender; returns true if one started
+  const f=p.facing,fx=Math.sin(f),fz=Math.cos(f),cx=Math.cos(f),hb=p.n('handle'),a=p.ai;
+  let side=Math.random()<0.5?-1:1;if(near.o){const lat=(near.o.pos.x-p.pos.x)*cx-(near.o.pos.z-p.pos.z)*fx;if(Math.abs(lat)>0.2)side=lat>0?-1:1;}
+  const dir={x:side*cx,z:-side*fx},w=[];
+  const add=(k,wt,o)=>{if(wt>0)w.push([k,wt,o]);};
+  if(p.handSide!==side)add('cross',3,{dir,esc});else add('inout',esc?0:2,{dir});
+  add('btb',1+2*hb,{dir,esc});add('spin',(p.cool.spin||0)<=0?1+1.5*hb:0,{esc,spinDir:p.handSide<0?-1:1,side:esc?side:0});
+  if(!esc){add('hesi',1.2,{});add('legs',0.6+hb,{queue:'cross'});}
+  const D=hoopDist(p.pos.x,p.pos.z);if(estJumper(p)>0.3&&D>3.5&&D<8.6)add('stepback',1+1.5*Math.max(p.n('mid'),p.n('three')),{esc});
+  let tot=w.reduce((s,x)=>s+x[1],0),r=Math.random()*tot,pick=w[0];for(const x of w){r-=x[1];if(r<=0){pick=x;break;}}
+  startMove(p,pick[0],pick[2]);a.post=pick[0];a.postT=1.1;a.t=pick[0]==='stepback'?0.35:0.05;return true;}
 function handlerAI(p,dt){
   const a=p.ai;a.hold+=dt;if(busy(p)||!p.grounded)return;
   const D=hoopDist(p.pos.x,p.pos.z),near=nearestOpp(p),tm=teammateOf(p);
@@ -1328,13 +1341,24 @@ function handlerAI(p,dt){
     p.sprinting=true;setWant(p,HOOP.x+(p.pos.x>0?0.35:-0.35),HOOP.z+0.9,p.d.sprint*(0.86+0.1*p.n('handle')),0.1);a.driveT-=dt;
     const reach=canDunk(p)?Math.max(dunkRange(p),2.3):2.3;
     if(D<reach){finish(p);return;}
+    // a defender cuts the drive off: counter with an escape move and keep attacking
+    a.escT=(a.escT||0)-dt;
+    if(!a.power&&near.o&&near.d<1.45&&a.escT<=0&&p.cool.cross<=0&&D>1.8){const fx=Math.sin(p.facing),fz=Math.cos(p.facing),ahead=((near.o.pos.x-p.pos.x)*fx+(near.o.pos.z-p.pos.z)*fz)/(near.d||1);
+      if(ahead>0.35){a.escT=0.45;if(Math.random()<0.4+0.45*p.n('handle')){aiMove(p,near,true);a.mode='drive';a.driveT=Math.max(a.driveT,1.1);return;}}}
     if(a.driveT<=0||(!a.power&&!laneOpen(p,0.7)&&near.d<0.9)){a.mode=null;a.power=false;a.hold=Math.min(a.hold,0.3);if(D<3.6&&p.n('close')>0.4&&Math.random()<0.5){startFloater(p);return;}
       if(tm&&nearestOpp(tm).d>1.6&&passLaneOpen(p,tm)&&Math.random()<0.75){startPass(p,tm);return;}}
     return;
   }
-  a.t-=dt;
+  a.t-=dt;a.postT=(a.postT||0)-dt;
   if(a.t<=0){
     a.t=rand(0.18,0.32);
+    // right after a move: attack the space it made (drive the lane, or shoot off the stepback)
+    if(a.postT>0&&a.post){const pm=a.post;a.post=null;
+      if(pm==='stepback'&&estJumper(p)>0.3&&Math.random()<0.75){startShot(p);return;}
+      if(pm!=='stepback'&&pm!=='hesi'&&laneOpen(p,0.75)&&D<9.5&&Math.random()<0.7){a.mode='drive';a.driveT=1.6;return;}
+      if(pm==='hesi'&&Math.random()<0.5){if(laneOpen(p,0.75)){a.mode='drive';a.driveT=1.6;}else if(estJumper(p)>0.4)startShot(p);return;}
+      // still guarded: chain another move (combos also break ankles)
+      if(near.d<1.6&&p.cool.cross<=0&&Math.random()<0.3+0.4*p.n('handle')){aiMove(p,near,false);return;}}
     const est=estJumper(p),mOpen=tm?nearestOpp(tm).d:0;
     if(D<2.3){finish(p);return;}
     if(game.shotClock<2.0){D<3.4?finish(p):startShot(p);return;}
@@ -1344,7 +1368,7 @@ function handlerAI(p,dt){
     if(a.hold>0.3&&laneOpen(p,0.9)&&D<9.5&&Math.random()<0.35+0.4*att+(near.d<1.7&&!open?0.2:0)){a.mode='drive';a.driveT=1.8;return;}
     if(!tm&&a.hold>0.4&&D<6.2&&near.o&&p.d.mass*(0.7+0.3*p.n('strength'))>near.o.d.mass*(0.7+0.3*near.o.n('strength'))*1.2&&Math.random()<0.18+0.2*att){a.mode='drive';a.driveT=1.4;a.power=true;return;}
     if(a.hold>0.5&&mOpen>near.d+0.9&&mOpen>1.8&&passLaneOpen(p,tm)&&Math.random()<0.45){startPass(p,tm);return;}
-    if(near.d<1.4&&p.cool.cross<=0&&Math.random()<0.25+0.2*p.n('handle')){const t=['cross','cross','btb','legs','hesi','spin','stepback'][Math.floor(Math.random()*7)];startMove(p,t);if(t==='stepback')a.t=0.35;return;}
+    if(near.d<1.9&&p.cool.cross<=0&&!game.needsClear&&Math.random()<(near.d<1.4?0.45:0.25)+0.35*p.n('handle')){aiMove(p,near,false);return;}
     if(tm&&a.hold>3.2&&Math.random()<0.35&&passLaneOpen(p,tm)){startPass(p,tm);return;}
     if(a.hold>1.8&&est>0.4&&Math.random()<0.15){startShot(p);return;}
     if(!a.probe||Math.random()<0.25){const ang=rand(-1.25,1.25),r=rand(4.5,7.6);a.probe={x:clamp(HOOP.x+Math.sin(ang)*r,-7,7),z:HOOP.z+Math.cos(ang)*r};}
@@ -1390,17 +1414,25 @@ function defenseAI(p,dt){
   }
   if(!shooting)p.contested=false;
 }
+function boxTarget(p){// on a shot, box out my man if he's near the rim, otherwise the opponent closest to the rim that a teammate isn't already on
+  const nearRim=o=>o&&o.state!=='down'&&hoopDist(o.pos.x,o.pos.z)<5.4,tm=teammateOf(p);if(nearRim(p.assign))return p.assign;
+  let best=null,bd=1e9;for(const o of opps(p)){if(!nearRim(o)||(tm&&tm.ai&&tm.ai.boxOn===o))continue;const d=hoopDist(o.pos.x,o.pos.z);if(d<bd){bd=d;best=o;}}return best;}
+const sealPt=m=>{const dx=HOOP.x-m.pos.x,dz=HOOP.z+0.3-m.pos.z,l=hyp(dx,dz)||1;return {x:m.pos.x+dx/l*0.5,z:m.pos.z+dz/l*0.5};};
 function reboundAI(p,dt){
   const b=ball,sh=b.shot,live=sh&&!sh.touched&&!sh.blocked&&!sh.scored,tm=teammateOf(p);let tx,tz;
   if(live){
-    if(p.team!==sh.team){const man=p.assign||nearestOpp(p).o,dx=HOOP.x-man.pos.x,dz=HOOP.z-man.pos.z,l=hyp(dx,dz)||1;tx=man.pos.x+dx/l*0.8;tz=man.pos.z+dz/l*0.8;}
+    if(p.team!==sh.team){// defense: find a body, get on the rim side of it and seal it off
+      const m=boxTarget(p);p.ai.boxOn=m;if(m){const s=sealPt(m);tx=s.x;tz=s.z;}else{tx=HOOP.x+(p.pos.x>0?0.8:-0.8);tz=HOOP.z+1.2;}}
     else if(p===sh.shooter){tx=p.pos.x;tz=p.pos.z;}else{tx=HOOP.x+(p.pos.x>0?1:-1)*1.3;tz=HOOP.z+1.4;}
   }else{const land=predictLanding(),dMe=hyp(land.x-p.pos.x,land.z-p.pos.z),dTm=tm?hyp(land.x-tm.pos.x,land.z-tm.pos.z):1e9;
     if(dMe<=dTm||dMe<2.5){tx=land.x;tz=land.z;}else{tx=lerp(land.x,HOOP.x,0.4);tz=lerp(land.z,HOOP.z+1.5,0.4);}}
   p.sprinting=true;setWant(p,tx,tz,p.d.sprint*0.85,0.05);setFace(p,faceAng(b.pos.x-p.pos.x,b.pos.z-p.pos.z));
-  if(p.boxing&&hyp(b.pos.x-p.pos.x,b.pos.z-p.pos.z)>1.6){p.wx=p.wz=0;}
+  const def=sh&&p.team!==sh.team;
+  if(p.boxing&&hyp(b.pos.x-p.pos.x,b.pos.z-p.pos.z)>1.6){
+    // hold the seal: mirror the man so he can't slip around, until the ball is coming down close by
+    if(def&&(live||b.pos.y>3.0+RIM_UP)){const s=sealPt(p.boxing);setWant(p,s.x,s.z,p.d.run*0.75,0.03);}else{p.wx=p.wz=0;}}
   const hd=hyp(b.pos.x-p.pos.x,b.pos.z-p.pos.z);
-  if(!live&&!(sh&&sh.scored)&&p.grounded&&canAct(p)&&hd<0.9&&b.pos.y>p.d.reach-0.2&&b.pos.y<p.d.reach+p.d.jumpH+0.2&&b.vel.y<0.5&&p.cool.jump<=0){startJump(p,'jump');p.cool.jump=0.9;}
+  if(!live&&!(sh&&sh.scored)&&p.grounded&&canAct(p)&&hd<(def?1.05:0.9)&&b.pos.y>p.d.reach-0.2&&b.pos.y<p.d.reach+p.d.jumpH+0.2&&b.vel.y<0.5&&p.cool.jump<=0){startJump(p,'jump');p.cool.jump=0.9;}
 }
 
 /* ================= input ================= */
@@ -1634,7 +1666,7 @@ function ballStep(h){
   }
   if(sh&&!sh.scored&&!sh.blocked&&!sh.noScore&&prevY>=HOOP.y&&b.pos.y<HOOP.y&&b.vel.y<0&&hoopDist(b.pos.x,b.pos.z)<RIM_R-0.02&&game.phase==='live'){sh.scored=true;onScore(sh);}
   else if(sh&&sh.dunk&&sh.make&&!sh.scored&&!sh.blocked&&b.pos.y<HOOP.y-0.05&&hoopDist(b.pos.x,b.pos.z)<0.45&&game.phase==='live'){sh.scored=true;onScore(sh);}
-  if(sh&&sh.scored&&b.pos.y>2.55&&b.pos.y<HOOP.y+0.05){b.vel.x*=0.9;b.vel.z*=0.9;if(b.vel.y<-3)b.vel.y*=0.97;}
+  if(sh&&sh.scored&&b.pos.y>2.55+RIM_UP&&b.pos.y<HOOP.y+0.05){b.vel.x*=0.9;b.vel.z*=0.9;if(b.vel.y<-3)b.vel.y*=0.97;}
 }
 function updateBall(dt){
   const b=ball;b.noCatchT-=dt;
@@ -1649,7 +1681,7 @@ function updateBall(dt){
   const n=5,h=dt/n;for(let i=0;i<n;i++)ballStep(h);
   ballMesh.rotation.x+=b.spin*dt;b.spin*=Math.exp(-dt*0.6);
   const sh=b.shot;if(sh)sh.t+=dt;
-  if(b.pos.y>2.9&&b.vel.length()<0.6){b.stuckT+=dt;if(b.stuckT>0.6){b.vel.set(rand(-1,1),1.2,1.5);b.stuckT=0;}}else b.stuckT=0;
+  if(b.pos.y>2.9+RIM_UP&&b.vel.length()<0.6){b.stuckT+=dt;if(b.stuckT>0.6){b.vel.set(rand(-1,1),1.2,1.5);b.stuckT=0;}}else b.stuckT=0;
   if(game.phase!=='live')return;
   if(sh&&!sh.touched&&!sh.blocked&&!sh.dunk&&sh.t<0.55){
     for(const p of opps(sh.shooter)){if(p.y<0.1||sh.tried.has(p))continue;
@@ -1662,11 +1694,11 @@ function updateBall(dt){
           break;}}}
   }
   if(sh&&sh.scored)return;
-  const catchable=!sh||sh.touched||sh.blocked||(b.vel.y<0&&b.pos.y<2.75);if(!catchable)return;
+  const catchable=!sh||sh.touched||sh.blocked||(b.vel.y<0&&b.pos.y<2.75+RIM_UP);if(!catchable)return;
   let best=null,bd=1e9;
   for(const p of players){if(p===b.noCatch&&b.noCatchT>0)continue;if(['stumble','hang','dunk','down'].includes(p.state))continue;
     if(b.pos.y>p.y+p.d.reach+0.05+0.15*p.n('reb')||b.pos.y<p.y-0.05)continue;
-    const r=b.pass?(b.pass.to===p?1.0:(p.team!==b.pass.team?0:0.6)):(0.55+0.45*p.n('reb')+p.b.ws*0.02)*(p.boxedT>0?0.5:1);if(r<=0)continue;
+    const r=b.pass?(b.pass.to===p?1.0:(p.team!==b.pass.team?0:0.6)):(0.55+0.45*p.n('reb')+p.b.ws*0.02)*(p.boxedT>0?0.5:1)*(p.boxing?1.12:1);if(r<=0)continue;
     const d=hyp(b.pos.x-p.pos.x,b.pos.z-p.pos.z);if(d<r&&d<bd){bd=d;best=p;}}
   if(best){const wasPass=b.pass;onCatch(best);if(wasPass&&wasPass.team!==best.team)banner(best.team===0?'PICKED OFF!':'<span>INTERCEPTED</span>',best.team===0?'w':1);}
 }
@@ -1873,7 +1905,7 @@ function poseTargets(p,dt){
         default:{const wm=Math.pow(r,1.5);T.sLX=-1.3;T.sLZ=0.55;T.eL=-0.5;T.eR=-0.12;T.wRX=-1.2*whip;T.chY=-0.35*Math.sin(Math.PI*wm)+0.4*whip;T.sRY=0.25*Math.sin(Math.PI*wm);}
       }
       break;}
-    case 'hang':T.sLX=T.sRX=-2.95;T.eL=T.eR=0;T.sLZ=0.06;T.sRZ=-0.06;T.hLX=0.3*Math.sin(p.st*8);T.hRX=-0.3*Math.sin(p.st*8);T.kL=T.kR=0.4;T.spX=0.1;if(p.hangOne){T.sLX=-0.5;T.sLZ=0.5+0.2*Math.sin(p.st*8);T.eL=-0.4;T.spZ=0.12;}break;
+    case 'hang':T.sLX=T.sRX=-2.95;T.eL=T.eR=0;T.sLZ=T.sRZ=0;T.wLX=T.wRX=T.wLZ=T.wRZ=0;T.sLY=T.sRY=0;T.hLX=0.3*Math.sin(p.st*8);T.hRX=-0.3*Math.sin(p.st*8);T.kL=T.kR=0.4;T.spX=0.1;if(p.hangOne){T.sLX=-0.5;T.sLZ=0.5+0.2*Math.sin(p.st*8);T.eL=-0.4;T.spZ=0.12;}break;
     case 'fall':T.sLX=T.sRX=-1.5;T.sLZ=0.6;T.sRZ=-0.6;T.eL=T.eR=-0.3;T.hLX=-0.3;T.kL=0.5;T.hRX=0.1;T.kR=0.3;break;
     case 'pass':{const r=clamp(p.st/0.13,0,1);twoHand(lerp(-0.85,-1.45,r),lerp(-1.7,-0.1,r));T.spX=0.25;T.hLX=-0.4;T.kL=0.4;break;}
     case 'jump':case 'block':
