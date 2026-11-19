@@ -294,6 +294,11 @@ input[type=text],input[type=number]{border-radius:2px}
 .mcont{border-radius:2px;font-weight:700}
 .tag2{font-weight:800}
 @media (max-width:520px){.pts{font-size:26px}#clock{font-size:22px}.clock{padding:3px 11px}}
+.fakefields{display:grid;gap:10px;width:min(420px,100%)}
+.fakefields .ff{display:grid;gap:4px;border-bottom:1px solid var(--line);padding:8px 0;cursor:not-allowed;user-select:none}
+.fakefields .ff span{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.fakefields .ff b{font-weight:500;color:var(--dim);letter-spacing:.12em}
+.fakefields .ff2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media (prefers-reduced-motion:reduce){#banner.show,.pts.bump,.chip.pulse,.fbcard.show,.tag2.show{animation-duration:.01s}#banner.show{animation:none;opacity:1}.fbcard.show{animation:none;opacity:1}}
 </style>
 </head>
@@ -325,6 +330,29 @@ input[type=text],input[type=number]{border-radius:2px}
   </div>
 </div>
 
+<div id="prank" class="overlay titlescr" style="z-index:30">
+  <div class="card tcard" id="prankBuy">
+    <div class="eyebrow">Blocktop 2v2 · Full game</div>
+    <h1 class="big">$500<em>.00</em></h1>
+    <p class="lede">One-time purchase. Unlocks every court, every dunk and online play.</p>
+    <button id="prankBtn" class="play" type="button">Buy now</button>
+  </div>
+  <div class="card tcard" id="prankPay" hidden>
+    <div class="eyebrow">Checkout</div>
+    <h2>Pay $500.00</h2>
+    <div class="fakefields" aria-hidden="true">
+      <div class="ff"><span>Card number</span><b>•••• •••• •••• ••••</b></div>
+      <div class="ff2"><div class="ff"><span>Expiry</span><b>MM / YY</b></div><div class="ff"><span>CVC</span><b>•••</b></div></div>
+      <div class="ff"><span>Zip code</span><b>•••••</b></div>
+    </div>
+    <button id="prankPayBtn" class="play" type="button">Pay $500.00</button>
+  </div>
+  <div class="card tcard" id="prankJk" hidden>
+    <h1 class="big">JK<em>.</em></h1>
+    <p class="lede">It's free. Have fun.</p>
+    <button id="prankGo" class="play" type="button">Play</button>
+  </div>
+</div>
 <div id="title" class="overlay titlescr">
   <div class="card tcard">
     <div class="eyebrow">HALF COURT STREETBALL</div>
@@ -2373,6 +2401,12 @@ function renderMenu(){
   $('ctrlList').innerHTML=html;
 }
 function setupMenu(){
+  {const pr=$('prank'),done=()=>{pr.hidden=true;};
+    $('prankBtn').addEventListener('click',()=>{$('prankBuy').hidden=true;$('prankPay').hidden=false;});
+    const jk=()=>{$('prankPay').hidden=true;$('prankBuy').hidden=true;$('prankJk').hidden=false;};
+    $('prankPayBtn').addEventListener('click',jk);document.querySelectorAll('#prankPay .ff').forEach(e=>e.addEventListener('click',jk));
+    $('prankGo').addEventListener('click',done);
+    let typed='';addEventListener('keydown',e=>{if(pr.hidden)return;typed=(typed+(e.key||'')).slice(-4).toUpperCase();if(typed==='RECE')done();});}
   $('titlePlay').addEventListener('click',()=>{initAudio();showScreen('buildSel');});
   $('bsBack').addEventListener('click',()=>showScreen('title'));
   $('switchBtn').addEventListener('click',()=>showScreen('buildSel'));
